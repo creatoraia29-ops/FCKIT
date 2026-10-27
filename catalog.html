@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Каталог — FCKIT</title>
+    <meta
+      name="description"
+      content="Полный каталог FCKIT: головные уборы, верх, низ и обувь."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css?v=19" />
+  </head>
+  <body>
+    <div class="fx" aria-hidden="true">
+      <p class="swag-mark">#SWAG</p>
+    </div>
+
+    <header class="wrap intro">
+      <a class="logo" href="index.html">
+        <span class="logo__disc">
+          <img src="logo.jpg" alt="FCKIT" />
+        </span>
+      </a>
+      <div class="intro-right">
+        <div class="nav-bar">
+          <button type="button" class="btn menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="siteNav">
+            Меню
+          </button>
+          <nav class="nav-links" id="siteNav" aria-label="Основная навигация">
+            <a class="btn" href="index.html#about">О магазине</a>
+            <a class="btn" href="index.html#contacts">Контакты</a>
+            <button type="button" class="btn theme-toggle" id="themeToggle" aria-label="Переключить тему">
+              <span class="theme-toggle__label">Тема</span>
+            </button>
+          </nav>
+        </div>
+        <p class="eyebrow">Полный каталог</p>
+        <p class="hero-copy">
+          Мужская и женская линии. Выберите часть и откройте вещи этого раздела.
+        </p>
+        <a class="btn btn-primary" href="index.html#offers">Хиты и акции</a>
+      </div>
+    </header>
+
+    <main class="wrap catalog" id="catalog">
+      <form class="catalog-search" role="search">
+        <label class="catalog-search__field">
+          <svg class="catalog-search__icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.25" fill="none" stroke="currentColor" stroke-width="1.6"></circle>
+            <path d="M15.2 15.2 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+          </svg>
+          <input id="catalogSearch" type="search" placeholder="Найти вещь" autocomplete="off" aria-label="Поиск вещей" />
+        </label>
+      </form>
+      <div class="search-board" id="searchBoard" hidden></div>
+      <div class="section-switch">
+        <h2>Разделы</h2>
+        <nav class="section-switch__row" aria-label="Части тела">
+          <a class="btn section-switch__btn" href="hats.html">Головные уборы</a>
+          <a class="btn section-switch__btn" href="tops.html">Верх</a>
+          <a class="btn section-switch__btn" href="bottoms.html">Низ</a>
+          <a class="btn section-switch__btn" href="shoes.html">Обувь</a>
+        </nav>
+      </div>
+    </main>
+
+    <footer class="wrap site-footer" id="contacts">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <h3>Соцсети</h3>
+          <p>Новые поступления, наличие и ответы на вопросы — в мессенджерах магазина.</p>
+          <nav class="socials" aria-label="Социальные сети">
+            <a class="btn" href="https://instagram.com/" target="_blank" rel="noopener noreferrer">Instagram</a>
+            <a class="btn" href="https://t.me/" target="_blank" rel="noopener noreferrer">Telegram</a>
+            <a class="btn" href="https://vk.com/" target="_blank" rel="noopener noreferrer">VK</a>
+            <a class="btn" href="https://wa.me/" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+          </nav>
+        </div>
+        <div class="footer-col">
+          <h3>Быстрая доставка</h3>
+          <p>
+            Отправка в день заказа или на следующий рабочий день. По России —
+            3–7 дней через СДЭК, Boxberry и Почту России. Трек-номер приходит
+            сразу после передачи заказа в службу доставки.
+          </p>
+        </div>
+      </div>
+      <p class="copyright">© 2026 FCKIT</p>
+    </footer>
+
+    <a class="cart-fab" id="cartFab" href="cart.html" aria-label="Корзина">
+      <span class="cart-fab__disc">
+        <img src="img/cart-hoop.jpg?v=14" alt="" />
+      </span>
+      <span class="cart-count" data-cart-count hidden>0</span>
+    </a>
+
+    <script src="store.js?v=19"></script>
+    <script src="catalog.js?v=17"></script>
+  </body>
+</html>

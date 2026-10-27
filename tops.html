@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Верх — FCKIT</title>
+    <meta name="description" content="Верх FCKIT: свитеры и худи, мужская и женская линии." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css?v=19" />
+  </head>
+  <body data-section="tops">
+    <div class="fx" aria-hidden="true">
+      <p class="swag-mark">#SWAG</p>
+    </div>
+
+    <header class="wrap intro">
+      <a class="logo" href="index.html">
+        <span class="logo__disc">
+          <img src="logo.jpg" alt="FCKIT" />
+        </span>
+      </a>
+      <div class="intro-right">
+        <div class="nav-bar">
+          <button type="button" class="btn menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="siteNav">
+            Меню
+          </button>
+          <nav class="nav-links" id="siteNav" aria-label="Основная навигация">
+            <a class="btn" href="index.html#about">О магазине</a>
+            <a class="btn" href="index.html#contacts">Контакты</a>
+            <button type="button" class="btn theme-toggle" id="themeToggle" aria-label="Переключить тему">
+              <span class="theme-toggle__label">Тема</span>
+            </button>
+          </nav>
+        </div>
+        <p class="eyebrow">Раздел каталога</p>
+        <p class="hero-copy">Свитеры и худи. Выберите вещь и добавьте её в корзину.</p>
+      </div>
+    </header>
+
+    <main class="wrap catalog section-page">
+      <div class="catalog-head">
+        <h2 id="departmentTitle">Верх</h2>
+        <div class="catalog-controls">
+          <div class="segment" role="group" aria-label="Отдел">
+            <button type="button" class="btn is-active" data-department="men">Мужской</button>
+            <button type="button" class="btn" data-department="women">Женский</button>
+          </div>
+        </div>
+      </div>
+      <div class="catalog-layout">
+        <div id="productBoard"></div>
+        <aside class="product-preview" id="productPreview" aria-live="polite">
+          <p class="preview__empty">Выберите вещь в каталоге</p>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="wrap site-footer" id="contacts">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <h3>Соцсети</h3>
+          <p>Новые поступления, наличие и ответы на вопросы — в мессенджерах магазина.</p>
+          <nav class="socials" aria-label="Социальные сети">
+            <a class="btn" href="https://instagram.com/" target="_blank" rel="noopener noreferrer">Instagram</a>
+            <a class="btn" href="https://t.me/" target="_blank" rel="noopener noreferrer">Telegram</a>
+            <a class="btn" href="https://vk.com/" target="_blank" rel="noopener noreferrer">VK</a>
+            <a class="btn" href="https://wa.me/" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+          </nav>
+        </div>
+        <div class="footer-col">
+          <h3>Быстрая доставка</h3>
+          <p>
+            Отправка в день заказа или на следующий рабочий день. По России —
+            3–7 дней через СДЭК, Boxberry и Почту России. Трек-номер приходит
+            сразу после передачи заказа в службу доставки.
+          </p>
+        </div>
+      </div>
+      <p class="copyright">© 2026 FCKIT</p>
+    </footer>
+
+    <a class="cart-fab" id="cartFab" href="cart.html" aria-label="Корзина">
+      <span class="cart-fab__disc">
+        <img src="img/cart-hoop.jpg?v=14" alt="" />
+      </span>
+      <span class="cart-count" data-cart-count hidden>0</span>
+    </a>
+
+    <script src="store.js?v=19"></script>
+    <script src="script.js?v=18"></script>
+  </body>
+</html>

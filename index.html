@@ -14,17 +14,18 @@
       href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=19" />
   </head>
   <body>
     <div class="fx" aria-hidden="true">
-      <div class="fx__neon"></div>
       <p class="swag-mark">#SWAG</p>
     </div>
 
     <header class="wrap intro" id="about">
       <a class="logo" href="#about">
-        <img src="logo.jpg" alt="FCKIT" />
+        <span class="logo__disc">
+          <img src="logo.jpg" alt="FCKIT" />
+        </span>
       </a>
       <div class="intro-right">
         <div class="nav-bar">
@@ -33,7 +34,6 @@
           </button>
           <nav class="nav-links" id="siteNav" aria-label="Основная навигация">
             <a class="btn" href="#about">О магазине</a>
-            <a class="btn" href="#catalog">Каталог</a>
             <a class="btn" href="#contacts">Контакты</a>
             <button type="button" class="btn theme-toggle" id="themeToggle" aria-label="Переключить тему">
               <span class="theme-toggle__label">Тема</span>
@@ -46,32 +46,28 @@
           наценки. Мужская и женская линии: головные уборы, верх, низ и обувь.
           Доставка по России, цены без переплаты за бренд.
         </p>
-        <a class="btn btn-primary" href="#catalog">К каталогу</a>
       </div>
     </header>
 
-    <main class="wrap catalog" id="catalog">
-      <div class="catalog-head">
-        <h2 id="departmentTitle">Мужской отдел</h2>
-        <div class="catalog-controls">
-          <div class="segment" role="group" aria-label="Отдел">
-            <button type="button" class="btn is-active" data-department="men">Мужской</button>
-            <button type="button" class="btn" data-department="women">Женский</button>
+    <main class="wrap home" id="offers">
+      <section class="offer" aria-labelledby="hitTitle">
+        <div class="offer__hit">
+          <div class="showcase__head">
+            <h2 id="hitTitle">Хит продаж</h2>
+            <p>Вещь, которую забирают чаще всего.</p>
           </div>
-          <nav class="tabs" aria-label="Секции одежды">
-            <a class="btn" href="#sec-hats">Головные уборы</a>
-            <a class="btn" href="#sec-tops">Верх</a>
-            <a class="btn" href="#sec-bottoms">Низ</a>
-            <a class="btn" href="#sec-shoes">Обувь</a>
-          </nav>
+          <div id="hitBoard"></div>
         </div>
-      </div>
-      <div class="catalog-layout">
-        <div id="productBoard"></div>
-        <aside class="product-preview" id="productPreview" aria-live="polite">
-          <p class="preview__empty">Выберите вещь в каталоге</p>
-        </aside>
-      </div>
+
+        <div class="offer__deals" id="deals">
+          <div class="showcase__head">
+            <h2 id="dealsTitle">Горячие цены</h2>
+            <p>Цены снижены, пока есть размер.</p>
+          </div>
+          <div class="product-grid showcase-grid" id="dealBoard"></div>
+          <a class="btn btn-primary catalog-switch" href="catalog.html">Перейти в каталог</a>
+        </div>
+      </section>
     </main>
 
     <footer class="wrap site-footer" id="contacts">
@@ -98,6 +94,14 @@
       <p class="copyright">© 2026 FCKIT</p>
     </footer>
 
-    <script src="script.js"></script>
+    <a class="cart-fab" id="cartFab" href="cart.html" aria-label="Корзина">
+      <span class="cart-fab__disc">
+        <img src="img/cart-hoop.jpg?v=14" alt="" />
+      </span>
+      <span class="cart-count" data-cart-count hidden>0</span>
+    </a>
+
+    <script src="store.js?v=19"></script>
+    <script src="home.js?v=18"></script>
   </body>
 </html>
