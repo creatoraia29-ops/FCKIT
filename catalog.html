@@ -14,7 +14,7 @@
       href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=19" />
+    <link rel="stylesheet" href="styles.css?v=24" />
   </head>
   <body>
     <div class="fx" aria-hidden="true">
@@ -42,7 +42,7 @@
         </div>
         <p class="eyebrow">Полный каталог</p>
         <p class="hero-copy">
-          Мужская и женская линии. Выберите часть и откройте вещи этого раздела.
+          Мужская и женская линии. Стилист в центре страницы подберёт вещи и размер по фото в полный рост.
         </p>
         <a class="btn btn-primary" href="index.html#offers">Хиты и акции</a>
       </div>
@@ -59,14 +59,42 @@
         </label>
       </form>
       <div class="search-board" id="searchBoard" hidden></div>
-      <div class="section-switch">
-        <h2>Разделы</h2>
-        <nav class="section-switch__row" aria-label="Части тела">
-          <a class="btn section-switch__btn" href="hats.html">Головные уборы</a>
-          <a class="btn section-switch__btn" href="tops.html">Верх</a>
-          <a class="btn section-switch__btn" href="bottoms.html">Низ</a>
-          <a class="btn section-switch__btn" href="shoes.html">Обувь</a>
-        </nav>
+
+      <div class="catalog-desk">
+        <div class="section-switch">
+          <h2>Разделы</h2>
+          <nav class="section-switch__row" aria-label="Части тела">
+            <a class="btn section-switch__btn" href="hats.html">Головные уборы</a>
+            <a class="btn section-switch__btn" href="tops.html">Верх</a>
+            <a class="btn section-switch__btn" href="bottoms.html">Низ</a>
+            <a class="btn section-switch__btn" href="shoes.html">Обувь</a>
+          </nav>
+        </div>
+
+        <section class="assistant-window" id="assistantPanel" aria-label="Стилист FCKIT">
+          <header class="assistant-panel__head">
+            <div>
+              <p class="eyebrow">FCKIT</p>
+              <h2>Стилист</h2>
+            </div>
+          </header>
+          <div class="assistant-log" id="assistantLog" aria-live="polite"></div>
+          <form class="assistant-form" id="assistantForm">
+            <div class="assistant-preview" id="assistantPreview" hidden>
+              <img alt="Ваше фото" id="assistantPreviewImg" />
+              <button type="button" class="btn" id="assistantClearPhoto">Убрать фото</button>
+            </div>
+            <label class="assistant-file">
+              <input id="assistantFile" type="file" accept="image/jpeg,image/png,image/webp" />
+              <span class="btn">Фото</span>
+            </label>
+            <label class="assistant-text">
+              <span class="visually-hidden">Сообщение стилисту</span>
+              <textarea id="assistantInput" rows="1" placeholder="Фото в полный рост и что подобрать"></textarea>
+            </label>
+            <button type="submit" class="btn btn-primary" id="assistantSend">Отправить</button>
+          </form>
+        </section>
       </div>
     </main>
 
@@ -85,8 +113,8 @@
         <div class="footer-col">
           <h3>Быстрая доставка</h3>
           <p>
-            Отправка в день заказа или на следующий рабочий день. По России —
-            3–7 дней через СДЭК, Boxberry и Почту России. Трек-номер приходит
+            Отправка в день заказа или на следующий рабочий день. По Узбекистану —
+            1–3 дня через UzPost, BTS и Express24. Трек-номер приходит
             сразу после передачи заказа в службу доставки.
           </p>
         </div>
@@ -101,7 +129,8 @@
       <span class="cart-count" data-cart-count hidden>0</span>
     </a>
 
-    <script src="store.js?v=19"></script>
+    <script src="store.js?v=20"></script>
     <script src="catalog.js?v=17"></script>
+    <script src="assistant.js?v=2"></script>
   </body>
 </html>

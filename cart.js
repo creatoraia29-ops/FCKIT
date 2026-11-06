@@ -22,6 +22,31 @@ function lineMarkup(row) {
     </article>`;
 }
 
+function checkoutMarkup() {
+  return `
+    <form class="checkout" id="checkoutForm">
+      <div class="checkout__head">
+        <h3>Оформить заказ</h3>
+        <p>Заказ сразу появится в админке с временем и выбранными вещами.</p>
+      </div>
+      <div class="checkout__grid">
+        <label class="checkout__field">
+          <span>Имя</span>
+          <input name="name" type="text" maxlength="80" autocomplete="name" required />
+        </label>
+        <label class="checkout__field">
+          <span>Телефон</span>
+          <input name="phone" type="tel" maxlength="40" autocomplete="tel" required />
+        </label>
+        <label class="checkout__field checkout__field--wide">
+          <span>Комментарий</span>
+          <input name="note" type="text" maxlength="240" placeholder="Размер, цвет, адрес — по желанию" />
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary">Отправить заказ</button>
+    </form>`;
+}
+
 function renderCart() {
   const rows = cartLines();
   if (!rows.length) {
@@ -42,7 +67,28 @@ function renderCart() {
       <p class="cart-total">Итого: <strong>${formatPrice(total)}</strong></p>
       <button type="button" class="btn" data-cart-action="clear">Очистить</button>
     </div>
-    <p class="cart-note">Чтобы оформить заказ, напишите магазину в <a href="index.html#contacts">контактах</a>.</p>`;
+    ${checkoutMarkup()}`;
+}
+
+function bindCheckout() {
+  const form = document.getElementById("checkoutForm");
+  if (!form) return;
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const order = placeOrder({
+      name: data.get("name"),
+      phone: data.get("phone"),
+      note: data.get("note"),
+    });
+    if (!order) return;
+    cartBoard.innerHTML = `
+      <div class="cart-empty">
+        <p>Заказ ${escapeHtml(order.id)} принят ${escapeHtml(formatDateTime(order.createdAt))}.</p>
+        <p>Вещи сохранены. Магазин увидит их в админке.</p>
+        <a class="btn btn-primary" href="catalog.html">Вернуться в каталог</a>
+      </div>`;
+  });
 }
 
 cartBoard.addEventListener("click", (event) => {
@@ -55,6 +101,8 @@ cartBoard.addEventListener("click", (event) => {
   if (action === "remove") removeFromCart(id);
   if (action === "clear") writeCart([]);
   renderCart();
+  bindCheckout();
 });
 
 renderCart();
+bindCheckout();

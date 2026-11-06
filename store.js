@@ -1,4 +1,5 @@
 const CART_KEY = "fckit-cart";
+const ORDERS_KEY = "fckit-orders";
 
 const SECTION_TITLES = {
   hats: "Головные уборы",
@@ -118,6 +119,80 @@ function removeFromCart(id) {
   writeCart(readCart().filter((row) => row.id !== id));
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatDateTime(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function readOrders() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ORDERS_KEY));
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((order) => order && typeof order.id === "string" && Array.isArray(order.items) && order.createdAt);
+  } catch {
+    return [];
+  }
+}
+
+function writeOrders(orders) {
+  localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+}
+
+function snapshotCartLines() {
+  return cartLines().map(({ item, qty }) => ({
+    id: item.id,
+    title: item.title,
+    qty,
+    price: itemPrice(item),
+    department: item.department,
+    section: item.section,
+    image: item.image || "",
+    shade: item.shade,
+    text: item.text,
+  }));
+}
+
+function placeOrder({ name, phone, note }) {
+  const items = snapshotCartLines();
+  if (!items.length) return null;
+  const order = {
+    id: `FC-${Date.now().toString(36).toUpperCase()}`,
+    createdAt: new Date().toISOString(),
+    name: String(name || "").trim().slice(0, 80),
+    phone: String(phone || "").trim().slice(0, 40),
+    note: String(note || "").trim().slice(0, 240),
+    items,
+    total: items.reduce((sum, row) => sum + row.price * row.qty, 0),
+    status: "new",
+  };
+  writeOrders([order, ...readOrders()]);
+  writeCart([]);
+  return order;
+}
+
+function setOrderStatus(id, status) {
+  writeOrders(readOrders().map((order) => (order.id === id ? { ...order, status } : order)));
+}
+
+function removeOrder(id) {
+  writeOrders(readOrders().filter((order) => order.id !== id));
+}
+
 function updateCartBadge() {
   const count = cartCount();
   document.querySelectorAll("[data-cart-count]").forEach((node) => {
@@ -134,11 +209,13 @@ function applyTheme(theme) {
 }
 
 function bindTheme() {
+  if (document.body.dataset.page === "admin") return;
   const themeToggle = document.getElementById("themeToggle");
-  if (!themeToggle) return;
-  themeToggle.addEventListener("click", () => {
-    applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
-  });
+  if (themeToggle) {
+    themeToggle.addEventListener("click", () => {
+      applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+    });
+  }
   applyTheme(localStorage.getItem("fckit-theme") || "dark");
 }
 
@@ -244,7 +321,7 @@ function isHomePage() {
 }
 
 function bindPageBack() {
-  if (isHomePage()) return;
+  if (isHomePage() || document.body.dataset.page === "admin") return;
   const header = document.querySelector("header.intro");
   if (!header || document.getElementById("pageBack")) return;
   const button = document.createElement("button");
