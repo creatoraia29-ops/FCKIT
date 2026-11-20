@@ -139,6 +139,7 @@
     addMessage("user", image ? `${text} (фото приложено)` : text);
     history.push({ role: "user", text });
     input.value = "";
+    input.style.height = "auto";
     setBusy(true);
 
     try {
@@ -163,6 +164,12 @@
     } finally {
       setBusy(false);
     }
+  });
+
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    const nextHeight = Math.min(Math.max(input.scrollHeight, 44), 130);
+    input.style.height = `${nextHeight}px`;
   });
 
   input.addEventListener("keydown", (event) => {

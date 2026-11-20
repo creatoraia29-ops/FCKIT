@@ -14,7 +14,7 @@
       href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=30" />
+    <link rel="stylesheet" href="styles.css?v=32" />
   </head>
   <body>
     <div class="fx" aria-hidden="true">
@@ -71,9 +71,10 @@
         <section class="assistant-window" id="assistantPanel" aria-label="Стилист FCKIT">
           <header class="assistant-panel__head">
             <div>
-              <p class="eyebrow">FCKIT</p>
-              <h2>Стилист</h2>
+              <p class="eyebrow">ИИ-помощник</p>
+              <h2>Стилист FCKIT</h2>
             </div>
+            <span class="badge-tag" style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.3); font-size: 11px;">● Онлайн</span>
           </header>
           <div class="assistant-log" id="assistantLog" aria-live="polite"></div>
           <form class="assistant-form" id="assistantForm">
@@ -81,15 +82,21 @@
               <img alt="Ваше фото" id="assistantPreviewImg" />
               <button type="button" class="btn" id="assistantClearPhoto">Убрать фото</button>
             </div>
-            <label class="assistant-file">
+            <label class="assistant-file" title="Прикрепить фото">
               <input id="assistantFile" type="file" accept="image/jpeg,image/png,image/webp" />
-              <span class="btn">Фото</span>
+              <span class="btn assistant-file__btn" aria-label="Прикрепить фото">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" ry="4"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span class="assistant-file__label">Фото</span>
+              </span>
             </label>
             <label class="assistant-text">
               <span class="visually-hidden">Сообщение стилисту</span>
-              <textarea id="assistantInput" rows="1" placeholder="Фото в полный рост и что подобрать"></textarea>
+              <textarea id="assistantInput" rows="1" placeholder="Напишите стилисту..."></textarea>
             </label>
-            <button type="submit" class="btn btn-primary" id="assistantSend">Отправить</button>
+            <button type="submit" class="btn btn-primary" id="assistantSend" aria-label="Отправить">
+              <span class="assistant-send__label">Отправить</span>
+              <svg class="assistant-send__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
           </form>
         </section>
       </div>
@@ -126,6 +133,6 @@
 
     <script src="store.js?v=20"></script>
     <script src="catalog.js?v=17"></script>
-    <script src="assistant.js?v=2"></script>
+    <script src="assistant.js?v=5"></script>
   </body>
 </html>
