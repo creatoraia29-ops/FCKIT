@@ -7,6 +7,7 @@ const {
   dbSaveProducts,
   dbSaveOrder,
   dbGetOrders,
+  dbFindOrder,
   dbUpdateOrderStatus,
   dbGetPromotions,
   dbSavePromotions,
@@ -36,7 +37,9 @@ loadEnv();
 
 const PORT = Number(process.env.PORT) || 5500;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "9007119182:AAEI88xn8BC5yjp9ZCpHjei2wxZIEbSp5Gs";
+const TELEGRAM_CUSTOMER_BOT_TOKEN = process.env.TELEGRAM_CUSTOMER_BOT_TOKEN || "9241739958:AAFHr4AHnF4V9EDLzFyp6LD1hY8R5kLyUk8";
 let telegramOffset = 0;
+let telegramCustomerOffset = 0;
 
 function formatSum(value) {
   return `${new Intl.NumberFormat("ru-RU").format(value || 0)} сум`;
@@ -510,6 +513,282 @@ async function pollTelegramUpdates() {
   }
 }
 
+// ==========================================
+// TELEGRAM БОТ ДЛЯ КЛИЕНТОВ (@FCKIT_USERBot)
+// ==========================================
+
+const CUSTOMER_MAIN_KEYBOARD = {
+  keyboard: [
+    [{ text: "🔍 Статус заказа" }, { text: "🛍 Каталог товаров" }],
+    [{ text: "🚚 Доставка и сроки" }, { text: "💬 Служба заботы / Связь" }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+};
+
+const customerSessions = new Map();
+
+async function sendCustomerTelegramMessage(chatId, html, replyMarkup = null) {
+  if (!TELEGRAM_CUSTOMER_BOT_TOKEN) return null;
+  try {
+    const body = {
+      chat_id: chatId,
+      text: html,
+      parse_mode: "HTML",
+    };
+    if (replyMarkup) body.reply_markup = replyMarkup;
+
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_CUSTOMER_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error(`Customer TG error (${chatId}):`, data);
+      return null;
+    }
+    const data = await res.json();
+    return data.result;
+  } catch (err) {
+    console.error(`Customer TG send error (${chatId}):`, err.message);
+    return null;
+  }
+}
+
+async function answerCustomerTelegramCallback(callbackQueryId, text = "", showAlert = false) {
+  if (!TELEGRAM_CUSTOMER_BOT_TOKEN || !callbackQueryId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_CUSTOMER_BOT_TOKEN}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text,
+        show_alert: showAlert,
+      }),
+    });
+  } catch (err) {
+    console.error("Customer TG answerCallbackQuery error:", err.message);
+  }
+}
+
+function formatCustomerOrderCard(order) {
+  const isDone = order.status === "done";
+  const statusBadge = isDone
+    ? "✅ <b>Выполнен и доставлен</b>"
+    : "🆕 <b>Принят в обработку (в пути)</b>";
+
+  let itemsList = "▫️ (список товаров пуст)";
+  if (Array.isArray(order.items) && order.items.length > 0) {
+    itemsList = order.items
+      .map((it, idx) => {
+        const title = escapeTg(it.title || it.name || "Товар");
+        const size = it.size ? ` (размер: ${escapeTg(it.size)})` : "";
+        const qty = it.qty || it.count || 1;
+        const price = formatSum(it.price);
+        return `${idx + 1}. <b>${title}</b>${size}\n   └ ${qty} шт. × ${price}`;
+      })
+      .join("\n");
+  }
+
+  const dateStr = order.createdAt
+    ? new Date(order.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" })
+    : "—";
+  const totalStr = formatSum(order.total);
+  const noteStr = order.note ? `\n📝 <b>Примечание:</b> ${escapeTg(order.note)}` : "";
+
+  return (
+    `📦 <b>ИНФОРМАЦИЯ О ЗАКАЗЕ</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+    `🆔 <b>Номер заказа:</b> <code>${escapeTg(order.id)}</code>\n` +
+    `📊 <b>Статус:</b> ${statusBadge}\n` +
+    `📅 <b>Дата оформления:</b> ${escapeTg(dateStr)}\n` +
+    `👤 <b>Получатель:</b> ${escapeTg(order.name || "Не указан")}\n` +
+    `📞 <b>Телефон:</b> <code>${escapeTg(order.phone || "Не указан")}</code>` +
+    noteStr +
+    `\n\n🛍 <b>Состав заказа:</b>\n${itemsList}\n\n` +
+    `💰 <b>Итого к оплате:</b> <b>${totalStr}</b>\n━━━━━━━━━━━━━━━━━━━━\n` +
+    `🚚 <i>Доставка напрямую из Китая по Узбекистану занимает 7–10 дней. При возникновении любых вопросов нажмите «💬 Служба заботы / Связь».</i>`
+  );
+}
+
+async function handleCustomerTelegramUpdate(update) {
+  if (update.callback_query) {
+    const cq = update.callback_query;
+    const chatId = cq.message?.chat?.id;
+    if (chatId) {
+      if (cq.data === "cust_status") {
+        customerSessions.set(chatId, { waitingOrderSearch: true });
+        await sendCustomerTelegramMessage(
+          chatId,
+          `🔍 <b>Проверка статуса заказа</b>\n\nПришлите в ответ <b>номер вашего заказа</b> или <b>номер телефона</b>, указанный при покупке:`,
+          CUSTOMER_MAIN_KEYBOARD
+        );
+      }
+    }
+    await answerCustomerTelegramCallback(cq.id);
+    return;
+  }
+
+  if (update.message && update.message.text) {
+    const text = update.message.text.trim();
+    const chatId = update.message.chat.id;
+
+    // 1. Deep link или старт с параметром: /start <orderId>
+    const startMatch = text.match(/^\/start\s+(.+)$/i);
+    if (startMatch) {
+      const query = startMatch[1].trim();
+      const order = await dbFindOrder(query);
+      if (order) {
+        await sendCustomerTelegramMessage(
+          chatId,
+          `👋 <b>Здравствуйте, ${escapeTg(order.name || "клиент")}!</b>\nВот актуальная информация по вашему заказу:\n\n` +
+            formatCustomerOrderCard(order),
+          CUSTOMER_MAIN_KEYBOARD
+        );
+      } else {
+        await sendCustomerTelegramMessage(
+          chatId,
+          `🔍 Заказ с номером «<code>${escapeTg(query)}</code>» пока не найден в нашей системе. Возможно, он обрабатывается. Проверьте правильность номера или выберите действие в меню:`,
+          CUSTOMER_MAIN_KEYBOARD
+        );
+      }
+      return;
+    }
+
+    // 2. Команды /start, /help, /menu
+    if (/^\/(start|help|menu)$/i.test(text)) {
+      customerSessions.delete(chatId);
+      const welcomeText =
+        `👋 <b>Добро пожаловать в официальный бот магазина FCKIT!</b>\n\n` +
+        `Мы привозим стильную брендовую одежду напрямую из Китая в любую точку Узбекистана за 7–10 дней без переплат.\n\n` +
+        `⚡️ <b>Возможности бота:</b>\n` +
+        `▫️ 🔍 <b>Статус заказа</b> — узнать, где ваша посылка и статус готовности\n` +
+        `▫️ 🛍 <b>Каталог товаров</b> — новинки, горячие акции и каталог\n` +
+        `▫️ 🚚 <b>Доставка и сроки</b> — условия получения и сроки доставки\n` +
+        `▫️ 💬 <b>Служба заботы</b> — прямая связь с менеджером магазина\n\n` +
+        `<i>Воспользуйтесь кнопками меню ниже или просто отправьте номер вашего заказа:</i>`;
+      await sendCustomerTelegramMessage(chatId, welcomeText, CUSTOMER_MAIN_KEYBOARD);
+      return;
+    }
+
+    // 3. Кнопка "🔍 Статус заказа" или команда /status
+    if (text === "🔍 Статус заказа" || /^\/status$/i.test(text)) {
+      customerSessions.set(chatId, { waitingOrderSearch: true });
+      await sendCustomerTelegramMessage(
+        chatId,
+        `🔍 <b>Проверка статуса заказа</b>\n\nОтправьте в чат:\n▫️ <b>Номер вашего заказа</b> (например: <code>#3</code> или <code>order-1732...</code>)\n▫️ Либо <b>номер телефона</b>, указанный при заказе (например: <code>+998901234567</code>).`,
+        CUSTOMER_MAIN_KEYBOARD
+      );
+      return;
+    }
+
+    // 4. Кнопка "🛍 Каталог товаров" или /catalog
+    if (text === "🛍 Каталог товаров" || /^\/catalog$/i.test(text)) {
+      customerSessions.delete(chatId);
+      const catalogText =
+        `🛍 <b>Каталог FCKIT</b>\n\n` +
+        `У нас собраны лучшие тренды уличного стиля и современной моды по честным ценам:\n` +
+        `▫️ <b>Худи, свитшоты, футболки и оверсайз</b>\n` +
+        `▫️ <b>Широкие брюки, карго и джинсы</b>\n` +
+        `▫️ <b>Кроссовки, кеды и обувь</b>\n` +
+        `▫️ <b>Головные уборы и аксессуары</b>\n\n` +
+        `Все поставки идут напрямую с фабрик. Ознакомьтесь с полным ассортиментом на нашем сайте:`;
+      await sendCustomerTelegramMessage(chatId, catalogText, {
+        inline_keyboard: [
+          [{ text: "🌐 Открыть каталог на сайте", url: "https://mediterranean-ordered-figures-stress.trycloudflare.com/catalog.html" }],
+          [{ text: "🔥 Хиты и горячие предложения", url: "https://mediterranean-ordered-figures-stress.trycloudflare.com/#offers" }],
+        ],
+      });
+      return;
+    }
+
+    // 5. Кнопка "🚚 Доставка и сроки" или /delivery
+    if (text === "🚚 Доставка и сроки" || /^\/delivery$/i.test(text)) {
+      customerSessions.delete(chatId);
+      const deliveryText =
+        `🚚 <b>Доставка и оплата FCKIT</b>\n\n` +
+        `▫️ <b>Сроки доставки:</b> 7–10 рабочих дней с момента подтверждения заказа менеджером.\n` +
+        `▫️ <b>География:</b> Доставляем по всему Узбекистану (Ташкент, Самарканд, Бухара, Фергана, Андижан, Наманган и любые другие города и области).\n` +
+        `▫️ <b>Прямой привоз:</b> Мы доставляем одежду напрямую из Китая с минимальной стоимостью логистики, без посреднических наценок.\n` +
+        `▫️ <b>Отслеживание:</b> Статус вашего заказа в любой момент доступен прямо в этом боте.\n` +
+        `▫️ <b>Оплата:</b> Оплата при получении курьеру либо онлайн (Click / Payme).`;
+      await sendCustomerTelegramMessage(chatId, deliveryText, CUSTOMER_MAIN_KEYBOARD);
+      return;
+    }
+
+    // 6. Кнопка "💬 Служба заботы / Связь" или /support
+    if (text === "💬 Служба заботы / Связь" || /^\/support$/i.test(text)) {
+      customerSessions.delete(chatId);
+      const supportText =
+        `💬 <b>Служба заботы FCKIT</b>\n\n` +
+        `Возник вопрос по размеру, качеству или срокам доставки? Наша команда оперативно вам ответит!\n\n` +
+        `▫️ <b>Instagram:</b> <a href="https://www.instagram.com/fckit_tas?bqrl=MWYwYzduaDV6NWVlMw==">@fckit_tas</a>\n` +
+        `▫️ <b>Telegram канал:</b> <a href="https://t.me/+NwOfaVlX_mlmODY6">FCKIT Channel</a>\n` +
+        `▫️ <b>Менеджер в Telegram:</b> @fckit_tas\n\n` +
+        `Работаем без выходных. Пишите нам, мы на связи! 🙌`;
+      await sendCustomerTelegramMessage(chatId, supportText, CUSTOMER_MAIN_KEYBOARD);
+      return;
+    }
+
+    // 7. Поиск заказа по введённому тексту (ID или номер телефона)
+    const foundOrder = await dbFindOrder(text);
+    if (foundOrder) {
+      customerSessions.delete(chatId);
+      await sendCustomerTelegramMessage(
+        chatId,
+        `✅ <b>Заказ найден!</b>\n\n` + formatCustomerOrderCard(foundOrder),
+        CUSTOMER_MAIN_KEYBOARD
+      );
+      return;
+    }
+
+    const isWaiting = customerSessions.get(chatId)?.waitingOrderSearch;
+    if (isWaiting) {
+      customerSessions.delete(chatId);
+      await sendCustomerTelegramMessage(
+        chatId,
+        `🔍 <b>Заказ не найден</b>\n\nК сожалению, по запросу «<code>${escapeTg(text)}</code>» заказ не найден в базе данных магазина.\n\nПожалуйста, проверьте правильность введённого номера или телефона, либо свяжитесь с поддержкой через кнопку «💬 Служба заботы / Связь».`,
+        CUSTOMER_MAIN_KEYBOARD
+      );
+      return;
+    }
+
+    // Fallback: приветствие и меню
+    await sendCustomerTelegramMessage(
+      chatId,
+      `👋 Чем я могу помочь? Выберите нужный раздел в меню ниже или пришлите номер вашего заказа для отслеживания:`,
+      CUSTOMER_MAIN_KEYBOARD
+    );
+  }
+}
+
+async function pollCustomerTelegramUpdates() {
+  if (!TELEGRAM_CUSTOMER_BOT_TOKEN) return;
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_CUSTOMER_BOT_TOKEN}/getUpdates?offset=${telegramCustomerOffset}&timeout=15`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.result)) {
+        for (const update of data.result) {
+          telegramCustomerOffset = update.update_id + 1;
+          try {
+            await handleCustomerTelegramUpdate(update);
+          } catch (updateErr) {
+            console.error("Ошибка обработки Customer TG update:", updateErr);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // network timeout or error, continue
+  } finally {
+    setTimeout(pollCustomerTelegramUpdates, 2000);
+  }
+}
+
 function loadEnv() {
   const file = path.join(ROOT, ".env");
   if (!fs.existsSync(file)) return;
@@ -835,4 +1114,5 @@ server.listen(PORT, "127.0.0.1", async () => {
     console.error("Load Telegram users error:", err.message);
   }
   pollTelegramUpdates();
+  pollCustomerTelegramUpdates();
 });

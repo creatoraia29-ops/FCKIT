@@ -316,6 +316,78 @@ async function dbGetOrders(limit = 20) {
   return [];
 }
 
+async function dbFindOrder(query) {
+  const q = String(query || "").trim();
+  if (!q) return null;
+  const db = getClient();
+  if (db) {
+    try {
+      // 1. Поиск по точному ID (с учетом регистра или в верхнем регистре)
+      let res = await db.execute({
+        sql: `SELECT * FROM orders WHERE UPPER(id) = ? OR id = ? LIMIT 1`,
+        args: [q.toUpperCase(), q],
+      });
+      if (res.rows.length) {
+        const r = res.rows[0];
+        return {
+          id: r.id,
+          createdAt: r.createdAt,
+          name: r.name,
+          phone: r.phone,
+          note: r.note,
+          items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
+          total: Number(r.total || 0),
+          status: r.status || "new",
+        };
+      }
+
+      // 2. Поиск по подстроке ID
+      res = await db.execute({
+        sql: `SELECT * FROM orders WHERE id LIKE ? LIMIT 1`,
+        args: [`%${q}%`],
+      });
+      if (res.rows.length) {
+        const r = res.rows[0];
+        return {
+          id: r.id,
+          createdAt: r.createdAt,
+          name: r.name,
+          phone: r.phone,
+          note: r.note,
+          items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
+          total: Number(r.total || 0),
+          status: r.status || "new",
+        };
+      }
+
+      // 3. Поиск по номеру телефона
+      const digits = q.replace(/\D/g, "");
+      if (digits.length >= 7) {
+        res = await db.execute({
+          sql: `SELECT * FROM orders WHERE phone LIKE ? ORDER BY createdAt DESC LIMIT 1`,
+          args: [`%${digits.slice(-7)}%`],
+        });
+        if (res.rows.length) {
+          const r = res.rows[0];
+          return {
+            id: r.id,
+            createdAt: r.createdAt,
+            name: r.name,
+            phone: r.phone,
+            note: r.note,
+            items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
+            total: Number(r.total || 0),
+            status: r.status || "new",
+          };
+        }
+      }
+    } catch (e) {
+      console.error("Turso find order error:", e.message);
+    }
+  }
+  return null;
+}
+
 async function dbUpdateOrderStatus(orderId, status) {
   const db = getClient();
   if (db) {
@@ -395,6 +467,7 @@ module.exports = {
   dbSaveProducts,
   dbSaveOrder,
   dbGetOrders,
+  dbFindOrder,
   dbUpdateOrderStatus,
   dbGetPromotions,
   dbSavePromotions,

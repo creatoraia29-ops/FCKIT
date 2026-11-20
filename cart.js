@@ -88,10 +88,17 @@ function bindCheckout() {
       body: JSON.stringify(order),
     }).catch((err) => console.error("Ошибка отправки заказа на сервер:", err));
     cartBoard.innerHTML = `
-      <div class="cart-empty">
-        <p>Заказ ${escapeHtml(order.id)} принят ${escapeHtml(formatDateTime(order.createdAt))}.</p>
-        <p>Вещи сохранены. Магазин увидит их в админке.</p>
-        <a class="btn btn-primary" href="catalog.html">Вернуться в каталог</a>
+      <div class="cart-empty" style="text-align: center; max-width: 460px; margin: 0 auto;">
+        <h3 style="margin-top: 0; font-size: 20px;">🎉 Заказ оформлен!</h3>
+        <p>Номер вашего заказа: <strong>${escapeHtml(order.id)}</strong><br>
+        Время: ${escapeHtml(formatDateTime(order.createdAt))}</p>
+        <p style="color: var(--muted); font-size: 14px;">Менеджер уже обрабатывает ваш заказ. Доставка 7–10 дней напрямую из Китая по всему Узбекистану.</p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+          <a class="btn btn-primary" href="https://t.me/FCKIT_USERBot?start=${encodeURIComponent(order.id)}" target="_blank" rel="noopener">
+            🤖 Отслеживать заказ в Telegram-боте
+          </a>
+          <a class="btn" href="catalog.html">Вернуться в каталог</a>
+        </div>
       </div>`;
   });
 }
