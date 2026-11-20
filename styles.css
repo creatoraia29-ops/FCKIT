@@ -286,6 +286,25 @@ button {
   margin-left: auto;
 }
 
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-head .page-back {
+  margin: 0;
+}
+
+.page-head__tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .logo {
   display: inline-flex;
   align-items: center;
