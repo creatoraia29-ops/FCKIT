@@ -306,66 +306,44 @@ button {
   flex: none;
 }
 
+/* Органическая анимированная клякса (Blob) - Минималистичный 2D стиль без 3D-бликов */
+.logo--blob {
+  width: clamp(200px, 24vw, 290px);
+  aspect-ratio: 1;
+}
+
+.logo--compact {
+  width: 78px;
+  height: 78px;
+  aspect-ratio: 1;
+  flex: none;
+}
+
 .blob-shape {
   position: relative;
   width: 100%;
   height: 100%;
   display: grid;
   place-items: center;
-  border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-  animation: blob-morph 14s ease-in-out infinite, blob-gradient 10s ease-in-out infinite;
+  border-radius: 68% 32% 26% 74% / 70% 28% 72% 30%;
+  animation: blob-morph 8.5s ease-in-out infinite, blob-gradient 8s ease-in-out infinite;
   
-  /* Тёмная тема: глубокий шелковистый объёмный перелив */
-  background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.05) 35%, rgba(0, 0, 0, 0.8) 75%),
-    linear-gradient(135deg, #222228, #0e0e12, #2c2c34, #121216, #24242c);
-  background-size: 100% 100%, 250% 250%;
+  /* Тёмная тема: глубокий шелковистый 2D-градиент с плавным переливом оттенков (без 3D-бликов и без inset-теней) */
+  background: linear-gradient(135deg, #1c1c22, #0e0e11, #282832, #141418, #22222a);
+  background-size: 220% 220%;
   
-  border: 1.5px solid rgba(255, 255, 255, 0.24);
-  box-shadow:
-    0 16px 38px rgba(0, 0, 0, 0.75),
-    inset 0 4px 8px rgba(255, 255, 255, 0.35),
-    inset 0 -8px 18px rgba(0, 0, 0, 0.85),
-    0 0 28px rgba(255, 255, 255, 0.08);
-  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.6));
-  transition: box-shadow 0.5s ease, border-color 0.5s ease, background 0.5s ease;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.45);
+  transition: box-shadow 0.4s ease, border-color 0.4s ease, background 0.4s ease;
   overflow: hidden;
 }
 
-/* Светлая тема: свежий, глубокий контрастный графит с мягким бликом */
+/* Светлая тема: чистый глубокий графитовый 2D-градиент с высокой контрастностью */
 [data-theme="light"] .blob-shape {
-  background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.08) 38%, rgba(10, 10, 14, 0.95) 78%),
-    linear-gradient(135deg, #18181c, #30303a, #121216, #3a3a46, #0e0e12);
-  background-size: 100% 100%, 250% 250%;
-  
-  border: 1.5px solid rgba(0, 0, 0, 0.28);
-  box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.22),
-    inset 0 4px 8px rgba(255, 255, 255, 0.55),
-    inset 0 -8px 18px rgba(0, 0, 0, 0.65),
-    0 0 24px rgba(0, 0, 0, 0.1);
-  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.12));
-}
-
-/* Световой блик на поверхности капли */
-.blob-shape::before {
-  content: "";
-  position: absolute;
-  top: 10%;
-  left: 18%;
-  width: 44%;
-  height: 28%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 72%);
-  transform: rotate(-25deg);
-  pointer-events: none;
-  opacity: 0.85;
-}
-
-[data-theme="light"] .blob-shape::before {
-  opacity: 0.95;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 72%);
+  background: linear-gradient(135deg, #16161a, #282832, #101014, #30303c, #18181e);
+  background-size: 220% 220%;
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
 }
 
 .blob-content {
@@ -380,71 +358,79 @@ button {
 }
 
 .blob-title {
-  font-family: "Bebas Neue", Impact, sans-serif;
-  font-size: clamp(38px, 6.2vw, 56px);
-  font-weight: 400;
-  letter-spacing: 0.12em;
-  line-height: 0.9;
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
+  font-size: clamp(34px, 5.2vw, 46px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
   color: #ffffff;
-  text-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.8),
-    0 0 16px rgba(255, 255, 255, 0.22);
-  transition: letter-spacing 0.3s ease;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  transition: letter-spacing 0.3s ease, transform 0.3s ease;
 }
 
 .logo:hover .blob-title {
-  letter-spacing: 0.16em;
-}
-
-.logo--compact .blob-title {
-  font-size: 24px;
   letter-spacing: 0.08em;
 }
 
+.logo--compact .blob-title {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .blob-tag {
-  margin-top: 4px;
-  font-family: "Manrope", sans-serif;
-  font-size: 10px;
+  margin-top: 5px;
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.22em;
-  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 0.24em;
+  color: rgba(255, 255, 255, 0.75);
   text-transform: uppercase;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 .logo--compact .blob-tag {
   display: none;
 }
 
-/* Плавная органическая деформация контуров без резких рывков */
+/* Усиленная амплитуда и выразительность перетекания формы кляксы (живое органическое движение) */
 @keyframes blob-morph {
   0% {
-    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    border-radius: 68% 32% 26% 74% / 70% 28% 72% 30%;
+    transform: rotate(0deg) scale(1);
   }
-  25% {
-    border-radius: 42% 58% 62% 38% / 54% 40% 60% 46%;
+  20% {
+    border-radius: 30% 70% 64% 36% / 42% 76% 24% 58%;
+    transform: rotate(5deg) scale(1.025);
   }
-  50% {
-    border-radius: 35% 65% 55% 45% / 40% 65% 35% 60%;
+  40% {
+    border-radius: 74% 26% 40% 60% / 28% 44% 56% 72%;
+    transform: rotate(-4deg) scale(0.975);
   }
-  75% {
-    border-radius: 58% 42% 38% 62% / 62% 38% 62% 38%;
+  60% {
+    border-radius: 36% 64% 72% 28% / 68% 32% 68% 32%;
+    transform: rotate(4deg) scale(1.02);
+  }
+  80% {
+    border-radius: 60% 40% 30% 70% / 32% 70% 30% 68%;
+    transform: rotate(-3deg) scale(0.985);
   }
   100% {
-    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    border-radius: 68% 32% 26% 74% / 70% 28% 72% 30%;
+    transform: rotate(0deg) scale(1);
   }
 }
 
-/* Мягкий перелив градиентных оттенков */
+/* Мягкий перелив 2D градиентных оттенков */
 @keyframes blob-gradient {
   0% {
-    background-position: 0% 50%, 0% 50%;
+    background-position: 0% 50%;
   }
   50% {
-    background-position: 100% 50%, 100% 50%;
+    background-position: 100% 50%;
   }
   100% {
-    background-position: 0% 50%, 0% 50%;
+    background-position: 0% 50%;
   }
 }
 
@@ -2066,7 +2052,7 @@ body[data-page="admin"] .admin-shell {
 .catalog-desk .section-switch {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   align-items: stretch;
   justify-content: flex-start;
   margin: 0;
@@ -2074,23 +2060,26 @@ body[data-page="admin"] .admin-shell {
 }
 
 .catalog-desk .section-switch h2 {
-  font-size: 18px;
+  font-size: 24px;
+  font-weight: 700;
   margin: 0;
+  color: var(--heading);
 }
 
 .catalog-desk .section-switch__row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
 }
 
 .catalog-desk .section-switch__btn {
   width: 100%;
-  min-height: 42px;
+  min-height: 46px;
   justify-content: flex-start;
-  padding: 0 14px;
-  font-size: 14px;
+  padding: 0 16px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 /* Окно стилиста */
@@ -2383,8 +2372,9 @@ body[data-page="admin"] .admin-shell {
   }
 
   .catalog-desk .section-switch h2 {
-    font-size: 15px;
-    margin-bottom: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
   }
 
   .catalog-desk .section-switch__row {
@@ -2395,9 +2385,10 @@ body[data-page="admin"] .admin-shell {
   }
 
   .catalog-desk .section-switch__btn {
-    min-height: 38px;
-    padding: 0 8px;
-    font-size: 12.5px;
+    min-height: 42px;
+    padding: 0 10px;
+    font-size: 13.5px;
+    font-weight: 600;
     justify-content: center;
     text-align: center;
   }
@@ -2417,7 +2408,13 @@ body[data-page="admin"] .admin-shell {
 @media (max-width: 600px) {
   .catalog-desk .section-switch__row {
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: 10px;
+  }
+
+  .catalog-desk .section-switch__btn {
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 600;
   }
 
   .assistant-form {
