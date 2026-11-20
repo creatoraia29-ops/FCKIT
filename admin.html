@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=38" />
+    <link rel="stylesheet" href="styles.css?v=43" />
   </head>
   <body data-page="admin">
     <div class="admin-lock" id="adminLock">
@@ -125,17 +125,14 @@
               </label>
             </div>
 
-            <!-- Разбиение стоимости -->
-            <h3 style="margin-top: 18px; font-size: 16px;">Разбиение стоимости (рассрочка и карго)</h3>
+            <!-- Расчет доставки карго -->
+            <h3 style="margin-top: 18px; font-size: 16px;">Расчет доставки (карго)</h3>
             <div class="admin-input-grid">
-              <label class="checkout__field">
-                <span>Срок рассрочки (мес.)</span>
-                <input type="number" id="inpInstallmentMonths" min="1" max="24" value="4" />
-              </label>
               <label class="checkout__field">
                 <span>Вес (граммы, карго 15.000 сум / 100г)</span>
                 <input type="number" id="inpWeightGram" step="50" min="0" placeholder="напр. 500" />
               </label>
+              <input type="hidden" id="inpInstallmentMonths" value="1" />
             </div>
 
             <!-- Многоуровневые цены -->
@@ -335,7 +332,7 @@
       </form>
     </dialog>
 
-    <script src="store.js?v=25"></script>
+    <script src="store.js?v=21"></script>
     <script src="admin.js?v=26"></script>
   </body>
 </html>

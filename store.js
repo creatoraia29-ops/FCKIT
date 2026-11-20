@@ -126,10 +126,6 @@ function priceMarkup(item, className = "card__price") {
   const mainPriceHtml = `${prefix}${oldPriceHtml}<span class="price-current" style="${tag.accentColor ? `color: ${tag.accentColor};` : ""}">${formatPrice(effectivePrice)}</span>`;
 
   let extraHtml = "";
-  if (item.installmentMonths && item.installmentMonths > 1) {
-    const monthVal = Math.round(effectivePrice / item.installmentMonths);
-    extraHtml += `<span class="price-installment">по ${formatPrice(monthVal)}/мес</span>`;
-  }
   if (tag.benefitText) {
     extraHtml += `<span class="price-benefit">${escapeHtml(tag.benefitText)}</span>`;
   }
