@@ -313,17 +313,21 @@ button {
   transform: scale(0.96);
 }
 
-/* Прозрачный графический логотип FCKIT без лишних рамок и подложек (крупный, четкий) */
+/* Прозрачный графический логотип FCKIT без лишних рамок и подложек (крупный, выразительный) */
 .logo__img {
   display: block;
-  height: 88px;
+  height: 136px;
   width: auto;
   aspect-ratio: 787 / 798;
   object-fit: contain;
   /* Мягкое свечение и контраст, чтобы тонкие брызги, листья и мелкие линии идеально читались */
   filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.9))
-          drop-shadow(0 2px 10px rgba(255, 255, 255, 0.2));
+          drop-shadow(0 2px 14px rgba(255, 255, 255, 0.25));
   transition: filter 0.3s ease, transform 0.3s ease, height 0.25s ease;
+}
+
+.intro--compact .logo__img {
+  height: 80px;
 }
 
 /* В светлой теме белый рисунок инвертируется в графитово-чёрный на полностью прозрачной подложке */
@@ -333,7 +337,16 @@ button {
 
 @media (max-width: 720px) {
   .logo__img {
-    height: 58px;
+    height: 88px;
+  }
+  .intro--compact .logo__img {
+    height: 60px;
+  }
+}
+
+@media (max-width: 380px) {
+  .logo__img {
+    height: 76px;
   }
 }
 
