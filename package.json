@@ -1,11 +1,9 @@
 {
-  "name": "www",
+  "name": "fckit",
   "version": "1.0.0",
-  "description": "",
-  "main": "api/index.js",
+  "description": "FCKIT E-Commerce",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "test": "echo \"ok\""
   },
   "repository": {
     "type": "git",
