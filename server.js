@@ -50,7 +50,7 @@ function escapeTg(text) {
 }
 
 function getTelegramBotPassword() {
-  return String(process.env.TELEGRAM_BOT_PASSWORD || process.env.ADMIN_PASSWORD || "fckit2026").trim();
+  return String(process.env.TELEGRAM_BOT_PASSWORD || process.env.ADMIN_PASSWORD || "FCKIT-AFS").trim();
 }
 
 // Хранилище авторизованных администраторов в памяти (кеш)

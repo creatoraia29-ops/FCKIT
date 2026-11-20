@@ -1,4 +1,4 @@
-const ADMIN_PASSWORD = "fckit2026";
+const ADMIN_PASSWORD = "FCKIT-AFS";
 const ADMIN_SESSION_KEY = "fckit-admin-session";
 
 // Элементы экрана
