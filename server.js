@@ -6,8 +6,13 @@ const {
   dbGetProducts,
   dbSaveProducts,
   dbSaveOrder,
+  dbGetOrders,
+  dbUpdateOrderStatus,
   dbGetPromotions,
   dbSavePromotions,
+  dbGetAuthorizedTelegramUsers,
+  dbSaveAuthorizedTelegramUser,
+  dbRemoveAuthorizedTelegramUser,
 } = require("./db.js");
 
 const ROOT = __dirname;
@@ -44,61 +49,188 @@ function escapeTg(text) {
     .replace(/>/g, "&gt;");
 }
 
-function getTelegramChatIds() {
-  const chats = new Set();
+function getTelegramBotPassword() {
+  return String(process.env.TELEGRAM_BOT_PASSWORD || process.env.ADMIN_PASSWORD || "fckit2026").trim();
+}
+
+// Хранилище авторизованных администраторов в памяти (кеш)
+const authorizedTelegramUsers = new Map();
+// Защита от подбора пароля (brute-force rate limiting): chatId -> { count, lockedUntil, lastAttempt }
+const authAttempts = new Map();
+
+async function loadAuthorizedTelegramUsers() {
+  const file = path.join(ROOT, "telegram_authorized_users.json");
+  if (fs.existsSync(file)) {
+    try {
+      const list = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (Array.isArray(list)) {
+        list.forEach((u) => {
+          if (u && u.id) authorizedTelegramUsers.set(String(u.id), u);
+        });
+      }
+    } catch (e) {
+      console.error("Ошибка чтения telegram_authorized_users.json:", e.message);
+    }
+  }
+
+  // Также подгружаем из облачной БД Turso, если доступна
+  try {
+    const dbUsers = await dbGetAuthorizedTelegramUsers();
+    if (Array.isArray(dbUsers)) {
+      dbUsers.forEach((u) => {
+        if (u && u.id) authorizedTelegramUsers.set(String(u.id), u);
+      });
+    }
+  } catch {}
+
+  console.log(`Telegram Bot: загружено авторизованных администраторов: ${authorizedTelegramUsers.size}`);
+}
+
+function isTelegramAuthorized(userId) {
+  if (!userId) return false;
+  return authorizedTelegramUsers.has(String(userId));
+}
+
+async function saveAuthorizedTelegramUser(user) {
+  const uid = String(user.id);
+  const data = {
+    id: uid,
+    username: user.username || "",
+    firstName: user.firstName || user.first_name || "",
+    authorizedAt: new Date().toISOString(),
+  };
+  authorizedTelegramUsers.set(uid, data);
+
+  // Сохраняем в локальный JSON
+  const file = path.join(ROOT, "telegram_authorized_users.json");
+  try {
+    const list = Array.from(authorizedTelegramUsers.values());
+    fs.writeFileSync(file, JSON.stringify(list, null, 2), "utf8");
+  } catch (err) {
+    console.error("Не удалось записать telegram_authorized_users.json:", err.message);
+  }
+
+  // Сохраняем в Turso
+  try {
+    await dbSaveAuthorizedTelegramUser(data);
+  } catch (err) {
+    console.error("Не удалось записать пользователя в Turso:", err.message);
+  }
+}
+
+async function removeAuthorizedTelegramUser(userId) {
+  const uid = String(userId);
+  authorizedTelegramUsers.delete(uid);
+
+  const file = path.join(ROOT, "telegram_authorized_users.json");
+  try {
+    const list = Array.from(authorizedTelegramUsers.values());
+    fs.writeFileSync(file, JSON.stringify(list, null, 2), "utf8");
+  } catch (err) {
+    console.error("Не удалось обновить telegram_authorized_users.json:", err.message);
+  }
+
+  try {
+    await dbRemoveAuthorizedTelegramUser(uid);
+  } catch (err) {
+    console.error("Не удалось удалить пользователя из Turso:", err.message);
+  }
+}
+
+function getAuthorizedTelegramChatIds() {
+  const chats = new Set(Array.from(authorizedTelegramUsers.keys()));
   if (process.env.TELEGRAM_CHAT_ID) {
     process.env.TELEGRAM_CHAT_ID
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
-      .forEach((id) => chats.add(id));
-  }
-  const file = path.join(ROOT, "telegram_chats.json");
-  if (fs.existsSync(file)) {
-    try {
-      const list = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (Array.isArray(list)) list.forEach((id) => chats.add(String(id)));
-    } catch {}
+      .forEach((id) => {
+        if (authorizedTelegramUsers.has(id)) chats.add(id);
+      });
   }
   return Array.from(chats);
 }
 
-function saveTelegramChatId(chatId) {
-  const chats = new Set(getTelegramChatIds());
-  chats.add(String(chatId));
-  const file = path.join(ROOT, "telegram_chats.json");
-  try {
-    fs.writeFileSync(file, JSON.stringify(Array.from(chats), null, 2), "utf8");
-  } catch (err) {
-    console.error("Не удалось сохранить telegram_chats.json:", err.message);
-  }
-}
+// Главная клавиатура для авторизованных администраторов
+const MAIN_ADMIN_KEYBOARD = {
+  keyboard: [
+    [{ text: "📦 Заказы" }, { text: "📊 Статистика" }],
+    [{ text: "🔔 Проверить связь" }, { text: "🚪 Выйти" }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+};
 
-async function sendTelegramMessage(chatId, html) {
-  if (!TELEGRAM_BOT_TOKEN) return;
+async function sendTelegramMessage(chatId, html, replyMarkup = null) {
+  if (!TELEGRAM_BOT_TOKEN) return null;
   try {
+    const body = {
+      chat_id: chatId,
+      text: html,
+      parse_mode: "HTML",
+    };
+    if (replyMarkup) body.reply_markup = replyMarkup;
+
     const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: html,
-        parse_mode: "HTML",
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       console.error(`Telegram API error (${chatId}):`, data);
+      return null;
     }
+    const data = await res.json();
+    return data.result;
   } catch (err) {
     console.error(`Ошибка отправки в Telegram (${chatId}):`, err.message);
+    return null;
+  }
+}
+
+async function editTelegramMessage(chatId, messageId, html, replyMarkup = null) {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  try {
+    const body = {
+      chat_id: chatId,
+      message_id: messageId,
+      text: html,
+      parse_mode: "HTML",
+    };
+    if (replyMarkup) body.reply_markup = replyMarkup;
+
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error(`Ошибка редактирования Telegram-сообщения (${chatId}/${messageId}):`, err.message);
+  }
+}
+
+async function answerTelegramCallback(callbackQueryId, text = "", showAlert = false) {
+  if (!TELEGRAM_BOT_TOKEN || !callbackQueryId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text,
+        show_alert: showAlert,
+      }),
+    });
+  } catch (err) {
+    console.error("Ошибка answerCallbackQuery:", err.message);
   }
 }
 
 async function notifyTelegramOrder(order) {
-  const chats = getTelegramChatIds();
+  const chats = getAuthorizedTelegramChatIds();
   if (!chats.length) {
-    console.log("⚠️ Заказ получен, но нет подписчиков в Telegram. Напишите /start боту @FCKIT_TASBot");
+    console.log("⚠️ Заказ получен, но нет авторизованных администраторов в Telegram.");
     return;
   }
 
@@ -130,7 +262,226 @@ async function notifyTelegramOrder(order) {
     .filter(Boolean)
     .join("\n");
 
-  await Promise.all(chats.map((chatId) => sendTelegramMessage(chatId, message)));
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [{ text: "✅ Отметить выполненным", callback_data: `order_done:${order.id}` }],
+    ],
+  };
+
+  await Promise.all(chats.map((chatId) => sendTelegramMessage(chatId, message, inlineKeyboard)));
+}
+
+// ---------------------------------------------------------------------------
+// MIDDLEWARE / ПЕРЕХВАТЧИК ВСЕХ ВХОДЯЩИХ СООБЩЕНИЙ И CALLBACK-ЗАПРОСОВ
+// ---------------------------------------------------------------------------
+async function handleTelegramUpdate(update) {
+  const cb = update.callback_query;
+  const msg = update.message || update.edited_message;
+
+  // 1. ПЕРЕХВАТ CALLBACK-ЗАПРОСОВ (ИНЛАЙН-КНОПКИ)
+  if (cb) {
+    const fromId = String(cb.from.id);
+    const chatId = String(cb.message?.chat?.id || fromId);
+
+    // Проверка авторизации:
+    if (!isTelegramAuthorized(fromId)) {
+      await answerTelegramCallback(cb.id, "🔒 Доступ закрыт! Сначала введите пароль администратора.", true);
+      await sendTelegramMessage(
+        chatId,
+        `🔒 <b>Доступ ограничен</b>\nВы не авторизованы. Для использования бота введите пароль администратора:`,
+        { remove_keyboard: true }
+      );
+      return;
+    }
+
+    // Авторизованный callback
+    const data = cb.data || "";
+    if (data.startsWith("order_done:")) {
+      const orderId = data.replace("order_done:", "").trim();
+      await dbUpdateOrderStatus(orderId, "done");
+      await answerTelegramCallback(cb.id, `✅ Заказ #${orderId} отмечен как выполнен!`, false);
+
+      const oldText = cb.message?.text || "";
+      const updatedText = oldText.includes("✅ ВЫПОЛНЕН")
+        ? oldText
+        : `${oldText}\n\n✅ <b>СТАТУС: ВЫПОЛНЕН (админ @${cb.from.username || cb.from.first_name})</b>`;
+
+      await editTelegramMessage(chatId, cb.message.message_id, updatedText, null);
+    }
+    return;
+  }
+
+  // 2. ПЕРЕХВАТ ОБЫЧНЫХ СООБЩЕНИЙ И КОМАНД
+  if (msg && msg.chat) {
+    const chatId = String(msg.chat.id);
+    const fromId = String(msg.from?.id || chatId);
+    const text = (msg.text || "").trim();
+    const userTitle = msg.from?.username ? `@${msg.from.username}` : (msg.from?.first_name || "Пользователь");
+
+    // ПРОВЕРКА АВТОРИЗАЦИИ ПОЛЬЗОВАТЕЛЯ
+    if (!isTelegramAuthorized(fromId)) {
+      // Пользователь НЕ авторизован!
+
+      // Проверка на блокировку от перебора паролей (brute-force protection)
+      const attempt = authAttempts.get(chatId) || { count: 0, lockedUntil: 0, lastAttempt: 0 };
+      const now = Date.now();
+
+      if (attempt.lockedUntil && now < attempt.lockedUntil) {
+        const remainingSec = Math.ceil((attempt.lockedUntil - now) / 1000);
+        await sendTelegramMessage(
+          chatId,
+          `⏳ <b>Ввод пароля временно заблокирован</b>\n\nСлишком много неверных попыток.\nПожалуйста, подождите <b>${remainingSec} сек.</b> перед следующей попыткой.`,
+          { remove_keyboard: true }
+        );
+        return;
+      }
+
+      // Сверяем введенный текст с паролем из .env
+      const secretPassword = getTelegramBotPassword();
+
+      if (text === secretPassword) {
+        // ПАРОЛЬ ВЕРЕН!
+        authAttempts.delete(chatId);
+        await saveAuthorizedTelegramUser({
+          id: fromId,
+          username: msg.from?.username || "",
+          firstName: msg.from?.first_name || "",
+        });
+
+        console.log(`Telegram Bot: УСПЕШНАЯ авторизация пользователя ${fromId} (${userTitle})`);
+
+        await sendTelegramMessage(
+          chatId,
+          `🎉 <b>Авторизация успешна!</b>\n\nЗдравствуйте, <b>${escapeTg(userTitle)}</b>!\nВам предоставлен полный доступ к боту управления магазином FCKIT.\n\n🔔 <i>Уведомления о новых заказах и кнопки управления активированы.</i>`,
+          MAIN_ADMIN_KEYBOARD
+        );
+        return;
+      }
+
+      // Если введена команда /start или /help до ввода пароля
+      if (text === "/start" || text === "/help" || text === "/admin") {
+        await sendTelegramMessage(
+          chatId,
+          `🔒 <b>Закрытый Telegram-бот FCKIT</b>\n\nЭтот бот предназначен исключительно для администрации магазина FCKIT.\nВсе функции, команды и получение заказов закрыты.\n\n🔑 <b>Пожалуйста, отправьте секретный пароль администратора для входа:</b>`,
+          { remove_keyboard: true }
+        );
+        return;
+      }
+
+      // ПАРОЛЬ НЕВЕРЕН: учитываем попытку
+      attempt.count = (attempt.count || 0) + 1;
+      attempt.lastAttempt = now;
+
+      if (attempt.count >= 5) {
+        attempt.lockedUntil = now + 60 * 1000; // Блокировка на 60 секунд
+        attempt.count = 0;
+        authAttempts.set(chatId, attempt);
+        await sendTelegramMessage(
+          chatId,
+          `⛔️ <b>Превышен лимит попыток!</b>\n\nБот заблокирован на <b>60 секунд</b> в целях безопасности.\nПодождите и попробуйте снова.`,
+          { remove_keyboard: true }
+        );
+      } else {
+        const left = 5 - attempt.count;
+        authAttempts.set(chatId, attempt);
+        await sendTelegramMessage(
+          chatId,
+          `❌ <b>Неверный пароль.</b>\nОсталось попыток: <b>${left}</b>.\n\nПопробуйте ещё раз или введите команду /start:`
+        );
+      }
+      return;
+    }
+
+    // -----------------------------------------------------------------------
+    // ПОЛЬЗОВАТЕЛЬ АВТОРИЗОВАН — ДОСТУП К ФУНКЦИОНАЛУ И КОМАНДАМ
+    // -----------------------------------------------------------------------
+
+    // Выход из системы
+    if (text === "/logout" || text === "🚪 Выйти") {
+      await removeAuthorizedTelegramUser(fromId);
+      console.log(`Telegram Bot: пользователь ${fromId} (${userTitle}) вышел из системы.`);
+      await sendTelegramMessage(
+        chatId,
+        `🔒 <b>Вы вышли из системы.</b>\n\nДоступ к функциям и заказам закрыт.\nДля повторной авторизации отправьте /start и введите пароль.`,
+        { remove_keyboard: true }
+      );
+      return;
+    }
+
+    // Главное меню / старт для авторизованного
+    if (text === "/start" || text === "/menu" || text === "📱 Меню") {
+      await sendTelegramMessage(
+        chatId,
+        `👑 <b>Панель управления FCKIT</b>\n\nВы авторизованы как администратор: <b>${escapeTg(userTitle)}</b>\n\nВыберите действие в меню ниже:`,
+        MAIN_ADMIN_KEYBOARD
+      );
+      return;
+    }
+
+    // Просмотр последних заказов
+    if (text === "/orders" || text === "📦 Заказы") {
+      const orders = await dbGetOrders(5);
+      if (!orders.length) {
+        await sendTelegramMessage(chatId, `📦 <b>Заказов пока нет.</b>\nКак только появится новый заказ, вы получите уведомление.`);
+        return;
+      }
+
+      let report = `📦 <b>ПОСЛЕДНИЕ ${orders.length} ЗАКАЗОВ:</b>\n\n`;
+      orders.forEach((o, i) => {
+        const dateStr = new Date(o.createdAt || Date.now()).toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" });
+        const st = o.status === "done" ? "✅ ВЫПОЛНЕН" : "🆕 НОВЫЙ";
+        report += `<b>${i + 1}. Заказ #${escapeTg(o.id)}</b> [${st}]\n`;
+        report += `👤 ${escapeTg(o.name || "—")}, тел: <code>${escapeTg(o.phone || "—")}</code>\n`;
+        report += `💰 Сумма: <b>${formatSum(o.total)}</b>\n`;
+        report += `🕒 ${dateStr}\n\n`;
+      });
+
+      await sendTelegramMessage(chatId, report.trim(), MAIN_ADMIN_KEYBOARD);
+      return;
+    }
+
+    // Статистика
+    if (text === "/stats" || text === "📊 Статистика") {
+      const orders = await dbGetOrders(100);
+      const total = orders.length;
+      const done = orders.filter((o) => o.status === "done").length;
+      const fresh = orders.filter((o) => o.status !== "done").length;
+      const sum = orders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
+
+      const msgStats = [
+        `📊 <b>СТАТИСТИКА МАГАЗИНА FCKIT</b>`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `📦 Всего заказов в базе: <b>${total}</b>`,
+        `🆕 Новых (требуют обработки): <b>${fresh}</b>`,
+        `✅ Выполненных: <b>${done}</b>`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `💰 Общая сумма заказов: <b>${formatSum(sum)}</b>`,
+        `🤖 Telegram-бот: <b>Приватный режим (ВКЛ)</b>`,
+        `👥 Авторизованных админов: <b>${authorizedTelegramUsers.size}</b>`,
+      ].join("\n");
+
+      await sendTelegramMessage(chatId, msgStats, MAIN_ADMIN_KEYBOARD);
+      return;
+    }
+
+    // Проверка связи
+    if (text === "/ping" || text === "🔔 Проверить связь") {
+      const serverTime = new Date().toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" });
+      await sendTelegramMessage(
+        chatId,
+        `🔔 <b>Бот онлайн и полностью исправен!</b>\n\n▫️ Время сервера (Ташкент): <code>${serverTime}</code>\n▫️ Ваш ID: <code>${fromId}</code>\n▫️ Статус: <b>Авторизован ✅</b>\n▫️ Уведомления о заказах: <b>Активны</b>`,
+        MAIN_ADMIN_KEYBOARD
+      );
+      return;
+    }
+
+    // Неизвестная команда
+    await sendTelegramMessage(
+      chatId,
+      `❓ Неизвестная команда. Воспользуйтесь кнопками меню или отправьте:\n/orders — заказы\n/stats — статистика\n/logout — выйти`,
+      MAIN_ADMIN_KEYBOARD
+    );
+  }
 }
 
 async function pollTelegramUpdates() {
@@ -144,19 +495,10 @@ async function pollTelegramUpdates() {
       if (data.ok && Array.isArray(data.result)) {
         for (const update of data.result) {
           telegramOffset = update.update_id + 1;
-          const msg = update.message;
-          if (!msg || !msg.chat) continue;
-          const chatId = msg.chat.id;
-          const text = (msg.text || "").trim();
-
-          if (text.startsWith("/start") || text.startsWith("/admin")) {
-            saveTelegramChatId(chatId);
-            const userTitle = msg.chat.username ? `@${msg.chat.username}` : (msg.chat.first_name || "Админ");
-            console.log(`Telegram Bot: подключён чат ${chatId} (${userTitle})`);
-            await sendTelegramMessage(
-              chatId,
-              `✅ <b>Уведомления FCKIT подключены!</b>\n\nЗдравствуйте, ${escapeTg(userTitle)}!\nСюда будут автоматически приходить все новые заказы из магазина с данными покупателя и списком товаров.`
-            );
+          try {
+            await handleTelegramUpdate(update);
+          } catch (updateErr) {
+            console.error("Ошибка обработки Telegram update:", updateErr);
           }
         }
       }
@@ -480,8 +822,17 @@ const server = http.createServer(async (req, res) => {
   serveStatic(req, res);
 });
 
-server.listen(PORT, "127.0.0.1", () => {
+server.listen(PORT, "127.0.0.1", async () => {
   console.log(`FCKIT: http://127.0.0.1:${PORT}`);
-  initTurso();
+  try {
+    await initTurso();
+  } catch (err) {
+    console.error("Init Turso error:", err.message);
+  }
+  try {
+    await loadAuthorizedTelegramUsers();
+  } catch (err) {
+    console.error("Load Telegram users error:", err.message);
+  }
   pollTelegramUpdates();
 });

@@ -89,6 +89,14 @@ async function initTurso() {
         active INTEGER DEFAULT 1
       );
     `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS telegram_authorized_users (
+        id TEXT PRIMARY KEY,
+        username TEXT,
+        firstName TEXT,
+        authorizedAt TEXT
+      );
+    `);
 
     // Если таблица товаров пуста, переносим существующие из products.json
     const existing = await db.execute("SELECT COUNT(*) AS count FROM products");
@@ -283,12 +291,114 @@ async function dbSavePromotions(list) {
   }
 }
 
+async function dbGetOrders(limit = 20) {
+  const db = getClient();
+  if (db) {
+    try {
+      const res = await db.execute({
+        sql: `SELECT * FROM orders ORDER BY createdAt DESC LIMIT ?`,
+        args: [limit],
+      });
+      return res.rows.map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt,
+        name: r.name,
+        phone: r.phone,
+        note: r.note,
+        items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
+        total: Number(r.total || 0),
+        status: r.status || "new",
+      }));
+    } catch (e) {
+      console.error("Turso orders select error:", e.message);
+    }
+  }
+  return [];
+}
+
+async function dbUpdateOrderStatus(orderId, status) {
+  const db = getClient();
+  if (db) {
+    try {
+      await db.execute({
+        sql: `UPDATE orders SET status = ? WHERE id = ?`,
+        args: [status, String(orderId)],
+      });
+      return true;
+    } catch (e) {
+      console.error("Turso update order status error:", e.message);
+    }
+  }
+  return false;
+}
+
+async function dbGetAuthorizedTelegramUsers() {
+  const db = getClient();
+  if (db) {
+    try {
+      const res = await db.execute("SELECT * FROM telegram_authorized_users");
+      return res.rows.map((r) => ({
+        id: String(r.id),
+        username: r.username || "",
+        firstName: r.firstName || "",
+        authorizedAt: r.authorizedAt || "",
+      }));
+    } catch (e) {
+      console.error("Turso get authorized telegram users error:", e.message);
+    }
+  }
+  return [];
+}
+
+async function dbSaveAuthorizedTelegramUser(user) {
+  const db = getClient();
+  if (db) {
+    try {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO telegram_authorized_users (id, username, firstName, authorizedAt)
+              VALUES (?, ?, ?, ?)`,
+        args: [
+          String(user.id),
+          user.username || "",
+          user.firstName || "",
+          user.authorizedAt || new Date().toISOString(),
+        ],
+      });
+      return true;
+    } catch (e) {
+      console.error("Turso save authorized telegram user error:", e.message);
+    }
+  }
+  return false;
+}
+
+async function dbRemoveAuthorizedTelegramUser(userId) {
+  const db = getClient();
+  if (db) {
+    try {
+      await db.execute({
+        sql: `DELETE FROM telegram_authorized_users WHERE id = ?`,
+        args: [String(userId)],
+      });
+      return true;
+    } catch (e) {
+      console.error("Turso remove authorized telegram user error:", e.message);
+    }
+  }
+  return false;
+}
+
 module.exports = {
   getClient,
   initTurso,
   dbGetProducts,
   dbSaveProducts,
   dbSaveOrder,
+  dbGetOrders,
+  dbUpdateOrderStatus,
   dbGetPromotions,
   dbSavePromotions,
+  dbGetAuthorizedTelegramUsers,
+  dbSaveAuthorizedTelegramUser,
+  dbRemoveAuthorizedTelegramUser,
 };
