@@ -48,12 +48,18 @@ function getStoredProducts() {
 
 let PRODUCTS = getStoredProducts();
 
+function apiEndpoint(path) {
+  if (typeof getApiUrl === "function") return getApiUrl(path);
+  const base = (window.FCKIT_API_URL || "").replace(/\/+$/, "");
+  return base ? `${base}${path}` : path;
+}
+
 function saveProducts(list) {
   PRODUCTS = list;
   try {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(list));
   } catch {}
-  return fetch("/api/products", {
+  return fetch(apiEndpoint("/api/products"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(list),
@@ -75,7 +81,7 @@ function savePromos(list) {
   try {
     localStorage.setItem(PROMOS_KEY, JSON.stringify(list));
   } catch {}
-  return fetch("/api/promotions", {
+  return fetch(apiEndpoint("/api/promotions"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(list),
@@ -83,7 +89,7 @@ function savePromos(list) {
 }
 
 function syncFromServer() {
-  fetch("/api/products")
+  fetch(apiEndpoint("/api/products"))
     .then((r) => r.json())
     .then((list) => {
       if (Array.isArray(list) && list.length) {
@@ -93,7 +99,7 @@ function syncFromServer() {
     })
     .catch(() => {});
 
-  fetch("/api/promotions")
+  fetch(apiEndpoint("/api/promotions"))
     .then((r) => r.json())
     .then((list) => {
       if (Array.isArray(list)) {

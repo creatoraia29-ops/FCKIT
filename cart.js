@@ -1,5 +1,11 @@
 const cartBoard = document.getElementById("cartBoard");
 
+function apiEndpoint(path) {
+  if (typeof getApiUrl === "function") return getApiUrl(path);
+  const base = (window.FCKIT_API_URL || "").replace(/\/+$/, "");
+  return base ? `${base}${path}` : path;
+}
+
 // Валидация и автоопределение банковских карт для Узбекистана
 function detectUzbekCard(rawNumber) {
   const d = String(rawNumber || "").replace(/\D/g, "");
@@ -395,7 +401,7 @@ function initPaymentEvents(total) {
 
     try {
       // Отправляем заказ на сервер
-      await fetch("/api/order", {
+      await fetch(apiEndpoint("/api/order"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(order),
@@ -412,7 +418,7 @@ function initPaymentEvents(total) {
       const cvv = (cardCvvInput?.value || "").trim();
 
       try {
-        const initRes = await fetch("/api/payment/card-init", {
+        const initRes = await fetch(apiEndpoint("/api/payment/card-init"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -500,7 +506,7 @@ function showOtpModal({ order, txId, brand, last4, phoneMask, demoOtp }) {
     errorMsg.style.display = "none";
 
     try {
-      const res = await fetch("/api/payment/card-confirm-otp", {
+      const res = await fetch(apiEndpoint("/api/payment/card-confirm-otp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ txId, otp: code }),
@@ -561,7 +567,7 @@ async function renderTransferScreen(order) {
     </div>`;
 
   try {
-    const res = await fetch(`/api/payment/requisites?orderId=${encodeURIComponent(order.id)}`);
+    const res = await fetch(apiEndpoint(`/api/payment/requisites?orderId=${encodeURIComponent(order.id)}`));
     const data = await res.json();
     if (!res.ok || !data.ok) {
       alert(data.error || "Не удалось загрузить реквизиты перевода.");
@@ -676,7 +682,7 @@ async function renderTransferScreen(order) {
       const transactionId = (txInput?.value || "").trim();
 
       try {
-        const confirmRes = await fetch("/api/payment/confirm-transfer", {
+        const confirmRes = await fetch(apiEndpoint("/api/payment/confirm-transfer"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

@@ -180,8 +180,12 @@ async function dbGetProducts() {
 }
 
 async function dbSaveProducts(list) {
-  const pfile = path.join(ROOT, "products.json");
-  fs.writeFileSync(pfile, JSON.stringify(list, null, 2), "utf8");
+  try {
+    const pfile = path.join(ROOT, "products.json");
+    fs.writeFileSync(pfile, JSON.stringify(list, null, 2), "utf8");
+  } catch (e) {
+    // Read-only filesystem on serverless platforms (Vercel)
+  }
 
   const db = getClient();
   if (db) {
@@ -271,8 +275,12 @@ async function dbGetPromotions() {
 }
 
 async function dbSavePromotions(list) {
-  const file = path.join(ROOT, "promotions.json");
-  fs.writeFileSync(file, JSON.stringify(list, null, 2), "utf8");
+  try {
+    const file = path.join(ROOT, "promotions.json");
+    fs.writeFileSync(file, JSON.stringify(list, null, 2), "utf8");
+  } catch (e) {
+    // Read-only filesystem on serverless platforms (Vercel)
+  }
 
   const db = getClient();
   if (db) {

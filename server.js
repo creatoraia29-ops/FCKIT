@@ -1071,16 +1071,31 @@ ${catalogText()}
 }`;
 }
 
+function setCorsHeaders(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+}
+
 function json(res, status, body) {
   const data = JSON.stringify(body);
+  setCorsHeaders(res);
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
   });
   res.end(data);
 }
 
-function readBody(req, limit) {
+function readBody(req, limit = 5_000_000) {
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === "string") return Promise.resolve(req.body);
+    if (Buffer.isBuffer(req.body)) return Promise.resolve(req.body.toString("utf8"));
+    return Promise.resolve(JSON.stringify(req.body));
+  }
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
@@ -1219,7 +1234,124 @@ async function askGemini({ messages, image }) {
   return parseModelJson(extractText(payload));
 }
 
-const server = http.createServer(async (req, res) => {
+let dbInitialized = false;
+async function ensureDbInit() {
+  if (dbInitialized) return;
+  try {
+    await initTurso();
+  } catch (err) {
+    console.error("ensureDbInit Turso error:", err.message);
+  }
+  try {
+    await loadAuthorizedTelegramUsers();
+  } catch (err) {
+    console.error("ensureDbInit Telegram users error:", err.message);
+  }
+  dbInitialized = true;
+}
+
+async function handleRequest(req, res) {
+  // CORS Preflight
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+    });
+    res.end();
+    return;
+  }
+
+  await ensureDbInit();
+
+  // 0. Health check & root API info
+  if (req.url === "/" || req.url === "/api" || req.url === "/api/") {
+    if (process.env.VERCEL) {
+      json(res, 200, {
+        ok: true,
+        service: "FCKIT E-Commerce API",
+        status: "online",
+        time: new Date().toISOString(),
+      });
+      return;
+    }
+  }
+
+  // 1. Telegram Webhook: Администратор
+  if (req.method === "POST" && (req.url === "/api/webhook-admin" || req.url?.startsWith("/api/webhook-admin?"))) {
+    try {
+      const raw = await readBody(req, 1_000_000);
+      const update = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
+      if (update && update.update_id) {
+        await handleTelegramUpdate(update);
+      }
+      json(res, 200, { ok: true });
+    } catch (err) {
+      console.error("Webhook admin error:", err.message);
+      json(res, 200, { ok: false, error: err.message });
+    }
+    return;
+  }
+
+  // 2. Telegram Webhook: Клиент
+  if (req.method === "POST" && (req.url === "/api/webhook-customer" || req.url?.startsWith("/api/webhook-customer?"))) {
+    try {
+      const raw = await readBody(req, 1_000_000);
+      const update = typeof raw === "string" ? JSON.parse(raw || "{}") : raw;
+      if (update && update.update_id) {
+        await handleCustomerTelegramUpdate(update);
+      }
+      json(res, 200, { ok: true });
+    } catch (err) {
+      console.error("Webhook customer error:", err.message);
+      json(res, 200, { ok: false, error: err.message });
+    }
+    return;
+  }
+
+  // 3. Автоматическая настройка вебхуков Telegram (GET /api/setup-webhooks)
+  if (req.method === "GET" && req.url?.startsWith("/api/setup-webhooks")) {
+    const urlObj = new URL(req.url, `https://${req.headers.host || "127.0.0.1"}`);
+    const hostParam = urlObj.searchParams.get("host");
+    const proto = req.headers["x-forwarded-proto"] || "https";
+    const host = hostParam || req.headers["x-forwarded-host"] || req.headers.host;
+    const base = host.startsWith("http") ? host.replace(/\/+$/, "") : `${proto}://${host}`;
+
+    const adminWebhookUrl = `${base}/api/webhook-admin`;
+    const customerWebhookUrl = `${base}/api/webhook-customer`;
+
+    const results = { base, admin: null, customer: null };
+
+    if (TELEGRAM_BOT_TOKEN) {
+      try {
+        const resp = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: adminWebhookUrl, drop_pending_updates: false }),
+        });
+        results.admin = await resp.json();
+      } catch (e) {
+        results.admin = { error: e.message };
+      }
+    }
+
+    if (TELEGRAM_CUSTOMER_BOT_TOKEN) {
+      try {
+        const resp = await fetch(`https://api.telegram.org/bot${TELEGRAM_CUSTOMER_BOT_TOKEN}/setWebhook`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: customerWebhookUrl, drop_pending_updates: false }),
+        });
+        results.customer = await resp.json();
+      } catch (e) {
+        results.customer = { error: e.message };
+      }
+    }
+
+    json(res, 200, { ok: true, webhooks: results });
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/api/products") {
     const list = await dbGetProducts();
     json(res, 200, list);
@@ -1543,20 +1675,17 @@ const server = http.createServer(async (req, res) => {
   }
 
   serveStatic(req, res);
-});
+}
 
-server.listen(PORT, "127.0.0.1", async () => {
-  console.log(`FCKIT: http://127.0.0.1:${PORT}`);
-  try {
-    await initTurso();
-  } catch (err) {
-    console.error("Init Turso error:", err.message);
-  }
-  try {
-    await loadAuthorizedTelegramUsers();
-  } catch (err) {
-    console.error("Load Telegram users error:", err.message);
-  }
-  pollTelegramUpdates();
-  pollCustomerTelegramUpdates();
-});
+const server = http.createServer(handleRequest);
+
+if (!process.env.VERCEL) {
+  server.listen(PORT, "127.0.0.1", async () => {
+    console.log(`FCKIT: http://127.0.0.1:${PORT}`);
+    await ensureDbInit();
+    pollTelegramUpdates();
+    pollCustomerTelegramUpdates();
+  });
+}
+
+module.exports = { handleRequest, server };
