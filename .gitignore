@@ -6,3 +6,4 @@ Desktop.ini
 .env.*
 node_modules
 telegram_chats.json
+cloudflared.exe

@@ -270,47 +270,182 @@ button {
 }
 
 .logo {
-  display: grid;
-  justify-self: start;
-  width: min(100%, 320px);
-  aspect-ratio: 1;
-  padding: 0;
-  border: 1px solid var(--logo-ring);
-  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  border: none;
   background: transparent;
-  line-height: 0;
-  box-shadow: none;
+  line-height: 1;
+  text-decoration: none;
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.logo__disc {
-  display: grid;
-  place-items: center;
+.logo:hover,
+.logo:focus-visible {
+  outline: none;
+  transform: translateY(-2px) scale(1.02);
+}
+
+.logo:active {
+  transform: scale(0.97);
+}
+
+/* Органическая анимированная клякса (Blob) */
+.logo--blob {
+  width: clamp(200px, 24vw, 290px);
+  aspect-ratio: 1;
+}
+
+.logo--compact {
+  width: 78px;
+  height: 78px;
+  aspect-ratio: 1;
+  flex: none;
+}
+
+.blob-shape {
+  position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  animation: blob-morph 14s ease-in-out infinite, blob-gradient 10s ease-in-out infinite;
+  
+  /* Тёмная тема: глубокий шелковистый объёмный перелив */
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.05) 35%, rgba(0, 0, 0, 0.8) 75%),
+    linear-gradient(135deg, #222228, #0e0e12, #2c2c34, #121216, #24242c);
+  background-size: 100% 100%, 250% 250%;
+  
+  border: 1.5px solid rgba(255, 255, 255, 0.24);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.75),
+    inset 0 4px 8px rgba(255, 255, 255, 0.35),
+    inset 0 -8px 18px rgba(0, 0, 0, 0.85),
+    0 0 28px rgba(255, 255, 255, 0.08);
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.6));
+  transition: box-shadow 0.5s ease, border-color 0.5s ease, background 0.5s ease;
   overflow: hidden;
-  background: #050505;
 }
 
-.logo img {
-  display: block;
-  width: 86%;
-  height: 86%;
-  max-height: none;
-  object-fit: contain;
-  object-position: center;
-  background: transparent;
-  mix-blend-mode: screen;
-  filter: contrast(2.8) brightness(1.2) invert(1);
+/* Светлая тема: свежий, глубокий контрастный графит с мягким бликом */
+[data-theme="light"] .blob-shape {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.08) 38%, rgba(10, 10, 14, 0.95) 78%),
+    linear-gradient(135deg, #18181c, #30303a, #121216, #3a3a46, #0e0e12);
+  background-size: 100% 100%, 250% 250%;
+  
+  border: 1.5px solid rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.22),
+    inset 0 4px 8px rgba(255, 255, 255, 0.55),
+    inset 0 -8px 18px rgba(0, 0, 0, 0.65),
+    0 0 24px rgba(0, 0, 0, 0.1);
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.12));
 }
 
-[data-theme="light"] .logo__disc {
-  background: #f4f4f4;
+/* Световой блик на поверхности капли */
+.blob-shape::before {
+  content: "";
+  position: absolute;
+  top: 10%;
+  left: 18%;
+  width: 44%;
+  height: 28%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 72%);
+  transform: rotate(-25deg);
+  pointer-events: none;
+  opacity: 0.85;
 }
 
-[data-theme="light"] .logo img {
-  mix-blend-mode: multiply;
-  filter: contrast(1.45) brightness(1.02);
+[data-theme="light"] .blob-shape::before {
+  opacity: 0.95;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 72%);
+}
+
+.blob-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.blob-title {
+  font-family: "Bebas Neue", Impact, sans-serif;
+  font-size: clamp(38px, 6.2vw, 56px);
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  line-height: 0.9;
+  color: #ffffff;
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.8),
+    0 0 16px rgba(255, 255, 255, 0.22);
+  transition: letter-spacing 0.3s ease;
+}
+
+.logo:hover .blob-title {
+  letter-spacing: 0.16em;
+}
+
+.logo--compact .blob-title {
+  font-size: 24px;
+  letter-spacing: 0.08em;
+}
+
+.blob-tag {
+  margin-top: 4px;
+  font-family: "Manrope", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.logo--compact .blob-tag {
+  display: none;
+}
+
+/* Плавная органическая деформация контуров без резких рывков */
+@keyframes blob-morph {
+  0% {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  25% {
+    border-radius: 42% 58% 62% 38% / 54% 40% 60% 46%;
+  }
+  50% {
+    border-radius: 35% 65% 55% 45% / 40% 65% 35% 60%;
+  }
+  75% {
+    border-radius: 58% 42% 38% 62% / 62% 38% 62% 38%;
+  }
+  100% {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+}
+
+/* Мягкий перелив градиентных оттенков */
+@keyframes blob-gradient {
+  0% {
+    background-position: 0% 50%, 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%, 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%, 0% 50%;
+  }
 }
 
 .intro-right {
@@ -1649,10 +1784,18 @@ body[data-page="admin"] .admin-shell {
 @media (max-width: 980px) {
   .intro {
     grid-template-columns: 1fr;
+    gap: 24px;
+    text-align: center;
   }
 
-  .logo {
-    width: min(100%, 220px);
+  .intro .logo--blob {
+    margin: 0 auto;
+    width: clamp(170px, 32vw, 240px);
+  }
+
+  .intro-right {
+    align-items: center;
+    width: 100%;
   }
 
   .catalog-layout,
@@ -1661,7 +1804,7 @@ body[data-page="admin"] .admin-shell {
   }
 
   .showcase-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   }
 
   .feature-hit {
@@ -1675,7 +1818,7 @@ body[data-page="admin"] .admin-shell {
   }
 
   .swag-mark {
-    font-size: clamp(120px, 26vw, 320px);
+    font-size: clamp(110px, 24vw, 280px);
   }
 
   .preview__visual {
@@ -1687,7 +1830,7 @@ body[data-page="admin"] .admin-shell {
 
 @media (max-width: 900px) {
   .product-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     max-width: none;
   }
 
@@ -1708,21 +1851,42 @@ body[data-page="admin"] .admin-shell {
 }
 
 @media (max-width: 720px) {
+  .intro--compact {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .intro--compact .intro-right {
+    width: 100%;
+  }
+
   .menu-toggle {
     display: inline-flex;
+    min-height: 40px;
+    padding: 0 14px;
   }
 
   .cart-item {
-    grid-template-columns: 88px minmax(0, 1fr);
+    grid-template-columns: 80px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
   }
 
   .cart-item__visual {
-    width: 88px;
+    width: 80px;
+    height: 80px;
   }
 
   .cart-item__tools {
     grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
   }
 
   .checkout__grid,
@@ -1733,22 +1897,65 @@ body[data-page="admin"] .admin-shell {
     align-items: flex-start;
   }
 
-  .nav-links {
-    display: none;
+  /* Современное мобильное меню */
+  .nav-bar {
+    position: relative;
     width: 100%;
-    padding-bottom: 10px;
+    justify-content: flex-end;
   }
 
-  .nav-bar.is-open {
-    flex-wrap: wrap;
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: 0;
+    z-index: 50;
+    flex-direction: column;
+    width: 100%;
+    padding: 14px;
+    background: rgba(16, 16, 20, 0.97);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+    gap: 10px;
+  }
+
+  [data-theme="light"] .nav-links {
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.16);
+  }
+
+  .nav-links .btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+    font-size: 15px;
   }
 
   .nav-bar.is-open .nav-links {
     display: flex;
+    animation: menu-slide 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .btn-primary {
+  @keyframes menu-slide {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .card .btn-primary,
+  .checkout-form .btn-primary,
+  .admin-login .btn-primary {
     width: 100%;
+    min-height: 44px;
   }
 
   .segment {
@@ -1757,25 +1964,82 @@ body[data-page="admin"] .admin-shell {
 
   .segment .btn {
     flex: 1;
+    min-height: 40px;
+  }
+
+  .hero-copy {
+    font-size: 14px;
+    line-height: 1.5;
+    position: relative;
+    z-index: 2;
+  }
+
+  .hero-title {
+    font-size: 18px;
+    line-height: 1.3;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Улучшение читаемости на мобильных: приглушаем водяной знак #SWAG */
+  .swag-mark {
+    opacity: 0.12 !important;
+    filter: blur(2px) !important;
+  }
+
+  [data-theme="light"] .swag-mark {
+    opacity: 0.04 !important;
+    filter: blur(2px) !important;
   }
 }
 
 @media (max-width: 520px) {
   .wrap {
-    width: min(1280px, calc(100% - 20px));
+    width: min(1280px, calc(100% - 24px));
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .intro .logo--blob {
+    width: clamp(150px, 44vw, 190px);
   }
 
   .product-grid,
   .showcase-grid {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .socials {
     width: 100%;
+    flex-direction: column;
   }
 
   .socials .btn {
-    flex: 1;
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .cart-fab {
+    right: 14px;
+    bottom: 14px;
+    width: 54px;
+    height: 54px;
+  }
+
+  .catalog-search__field {
+    min-height: 48px;
+    width: 100%;
+  }
+
+  .catalog-search__field input {
+    font-size: 16px; /* Предотвращает нежелательный зум на iOS */
+  }
+
+  .checkout__field input {
+    font-size: 16px; /* Предотвращает нежелательный зум на iOS */
+    min-height: 44px;
   }
 }
 
