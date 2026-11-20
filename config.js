@@ -1,7 +1,6 @@
 // Конфигурация API для магазина FCKIT
-// На GitHub Pages запросы идут на наш рабочий Vercel бэкенд
 window.FCKIT_API_URL = window.location.hostname.includes("github.io")
-  ? "https://fckit-creatoraia29-ops.vercel.app"
+  ? "https://encouraging-bicycle-terrorism-participate.trycloudflare.com"
   : (window.FCKIT_API_URL || "");
 
 function getApiUrl(path) {
