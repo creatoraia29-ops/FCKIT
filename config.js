@@ -1,7 +1,8 @@
 // Конфигурация API для магазина FCKIT
-// При деплое бэкенда на Vercel и фронтенда на GitHub Pages
-// укажите здесь URL вашего бэкенда на Vercel (например: "https://fckit-api.vercel.app")
-window.FCKIT_API_URL = window.FCKIT_API_URL || "";
+// При работе на GitHub Pages запросы автоматически идут на наш активный бэкенд
+window.FCKIT_API_URL = window.location.hostname.includes("github.io")
+  ? "https://encouraging-bicycle-terrorism-participate.trycloudflare.com"
+  : (window.FCKIT_API_URL || "");
 
 function getApiUrl(path) {
   const base = (window.FCKIT_API_URL || "").replace(/\/+$/, "");
