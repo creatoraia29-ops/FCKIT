@@ -1767,7 +1767,8 @@ body[data-page="admin"] .admin-shell {
     gap: 14px 12px;
   }
 
-  .intro-bar > .logo {
+  .intro-bar > .logo,
+  .intro-bar > .page-back {
     grid-area: logo;
   }
 

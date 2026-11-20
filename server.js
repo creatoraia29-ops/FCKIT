@@ -940,7 +940,7 @@ async function handleCustomerTelegramUpdate(update) {
         `Возник вопрос по размеру, качеству или срокам доставки? Наша команда оперативно вам ответит!\n\n` +
         `▫️ <b>Instagram:</b> <a href="https://www.instagram.com/fckit_tas?bqrl=MWYwYzduaDV6NWVlMw==">@fckit_tas</a>\n` +
         `▫️ <b>Telegram канал:</b> <a href="https://t.me/+NwOfaVlX_mlmODY6">FCKIT Channel</a>\n` +
-        `▫️ <b>Менеджер в Telegram:</b> @fckit_tas\n\n` +
+        `▫️ <b>Менеджер в Telegram:</b> @Itamiyo_norikeru\n\n` +
         `Работаем без выходных. Пишите нам, мы на связи! 🙌`;
       await sendCustomerTelegramMessage(chatId, supportText, CUSTOMER_MAIN_KEYBOARD);
       return;

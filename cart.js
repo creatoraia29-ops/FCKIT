@@ -155,13 +155,6 @@ function checkoutMarkup(total) {
             <span class="pay-method-desc">Visa Uzum, Click, Payme</span>
           </div>
         </label>
-        <label class="pay-method-card" id="lblPayCash">
-          <input type="radio" name="paymentMethod" value="cash" />
-          <div class="pay-method-info">
-            <span class="pay-method-name">💵 При получении</span>
-            <span class="pay-method-desc">Наличными курьеру</span>
-          </div>
-        </label>
       </div>
 
       <!-- 1. Панель ввода банковской карты -->
@@ -210,14 +203,7 @@ function checkoutMarkup(total) {
       <div class="card-pay-box" id="transferPreviewPanel" style="display: none;">
         <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg);">
           📲 <b>Прямой перевод на карту Visa Uzum Bank</b> через мобильные приложения <b>Uzum Bank</b>, <b>Click</b> или <b>Payme</b>.<br>
-          <span style="color: var(--muted); font-size: 12px;">Номер карты получателя и кнопка «Я оплатил» откроются сразу после создания заказа.</span>
-        </p>
-      </div>
-
-      <!-- 3. Панель для оплаты при получении -->
-      <div class="card-pay-box" id="cashPreviewPanel" style="display: none;">
-        <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg);">
-          💵 <b>Оплата наличными курьеру</b> при доставке посылки по вашему адресу в Узбекистане после осмотра вещи.
+          <span style="color: var(--muted); font-size: 12px;">Реквизиты карты и форма отправки чека откроются сразу после нажатия кнопки.</span>
         </p>
       </div>
 
@@ -256,7 +242,6 @@ function initPaymentEvents(total) {
 
   const cardPanel = document.getElementById("cardPayPanel");
   const transferPanel = document.getElementById("transferPreviewPanel");
-  const cashPanel = document.getElementById("cashPreviewPanel");
   const btnSubmit = document.getElementById("btnSubmitOrder");
 
   const cardNumInput = document.getElementById("cardNumInput");
@@ -283,18 +268,11 @@ function initPaymentEvents(total) {
       if (method === "online_card") {
         cardPanel.style.display = "flex";
         transferPanel.style.display = "none";
-        cashPanel.style.display = "none";
         btnSubmit.innerHTML = `💳 Оплатить картой ${formatPrice(total)}`;
-      } else if (method === "transfer") {
-        cardPanel.style.display = "none";
-        transferPanel.style.display = "block";
-        cashPanel.style.display = "none";
-        btnSubmit.innerHTML = `📲 Перейти к оплате переводом ${formatPrice(total)}`;
       } else {
         cardPanel.style.display = "none";
-        transferPanel.style.display = "none";
-        cashPanel.style.display = "block";
-        btnSubmit.innerHTML = `📦 Оформить заказ ${formatPrice(total)}`;
+        transferPanel.style.display = "block";
+        btnSubmit.innerHTML = `📲 Перейти к оплате переводом ${formatPrice(total)}`;
       }
     });
   });
@@ -466,12 +444,9 @@ function initPaymentEvents(total) {
         alert("Не удалось связаться с платёжным сервером. Попробуйте позже.");
         btnSubmit.disabled = false;
       }
-    } else if (method === "transfer") {
+    } else {
       // Открываем экран перевода на карту Visa Uzum
       renderTransferScreen(order);
-    } else {
-      // Оплата при получении (наличные)
-      renderCashSuccessScreen(order);
     }
   });
 }
@@ -746,24 +721,6 @@ function renderTransferSuccessScreen(order) {
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 22px;">
         <a class="btn btn-primary" href="https://t.me/FCKIT_USERBot?start=${encodeURIComponent(order.id)}" target="_blank" rel="noopener">
           🤖 Отслеживать статус в Telegram-боте
-        </a>
-        <a class="btn" href="catalog.html">Вернуться в каталог</a>
-      </div>
-    </div>`;
-}
-
-// Экран успешного оформления с оплатой наличными
-function renderCashSuccessScreen(order) {
-  cartBoard.innerHTML = `
-    <div class="cart-empty" style="text-align: center; max-width: 480px; margin: 0 auto;">
-      <h3 style="margin-top: 0; font-size: 20px;">🎉 Заказ оформлен!</h3>
-      <p>Номер заказа: <strong>${escapeHtml(order.id)}</strong><br>
-      Сумма к оплате: <strong>${formatPrice(order.total)}</strong> (наличными при получении)<br>
-      Время: ${escapeHtml(formatDateTime(order.createdAt))}</p>
-      <p style="color: var(--muted); font-size: 14px;">Менеджер свяжется с вами для подтверждения. Доставка 7–10 дней напрямую из Китая по всему Узбекистану.</p>
-      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
-        <a class="btn btn-primary" href="https://t.me/FCKIT_USERBot?start=${encodeURIComponent(order.id)}" target="_blank" rel="noopener">
-          🤖 Отслеживать заказ в Telegram-боте
         </a>
         <a class="btn" href="catalog.html">Вернуться в каталог</a>
       </div>
