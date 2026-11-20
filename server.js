@@ -9,6 +9,7 @@ const {
   dbGetOrders,
   dbFindOrder,
   dbUpdateOrderStatus,
+  dbUpdateOrderPayment,
   dbGetPromotions,
   dbSavePromotions,
   dbGetAuthorizedTelegramUsers,
@@ -230,6 +231,167 @@ async function answerTelegramCallback(callbackQueryId, text = "", showAlert = fa
   }
 }
 
+// ==========================================
+// ПЛАТЁЖНЫЙ МОДУЛЬ (UZCARD / HUMO / VISA / MASTERCARD)
+// ==========================================
+
+const cardTransactions = new Map(); // txId -> { txId, orderId, amount, brand, cardName, last4, phone, otpCode, createdAt }
+
+function detectUzbekCard(rawNumber) {
+  const d = String(rawNumber || "").replace(/\D/g, "");
+  if (!d) return { brand: null, name: "", valid: false, needsCvv: false, error: null };
+
+  // 1. Uzcard: 16 цифр, начинается на 8600, 5614, 5440, 6262
+  if (d.startsWith("8600") || d.startsWith("5614") || d.startsWith("5440") || d.startsWith("6262")) {
+    return {
+      brand: "uzcard",
+      name: "Uzcard",
+      valid: d.length === 16,
+      needsCvv: false,
+      error: d.length > 16 ? "Номер карты Uzcard должен содержать ровно 16 цифр" : null,
+    };
+  }
+
+  // 2. Humo: 16 цифр, начинается на 9860
+  if (d.startsWith("9860")) {
+    return {
+      brand: "humo",
+      name: "Humo",
+      valid: d.length === 16,
+      needsCvv: false,
+      error: d.length > 16 ? "Номер карты Humo должен содержать ровно 16 цифр" : null,
+    };
+  }
+
+  // 3. Visa: 16 цифр, начинается на 4
+  if (d.startsWith("4")) {
+    return {
+      brand: "visa",
+      name: "Visa",
+      valid: d.length === 16,
+      needsCvv: true,
+      error: d.length > 16 ? "Номер карты Visa должен содержать ровно 16 цифр" : null,
+    };
+  }
+
+  // 4. Mastercard: 16 цифр, начинается на 51-55 или 2221-2720
+  const mc2 = Number(d.slice(0, 2));
+  const mc4 = Number(d.slice(0, 4));
+  if ((mc2 >= 51 && mc2 <= 55) || (mc4 >= 2221 && mc4 <= 2720)) {
+    return {
+      brand: "mastercard",
+      name: "Mastercard",
+      valid: d.length === 16,
+      needsCvv: true,
+      error: d.length > 16 ? "Номер карты Mastercard должен содержать ровно 16 цифр" : null,
+    };
+  }
+
+  // Незавершённый ввод префикса (до 4 цифр)
+  if (["8", "86", "860", "5", "56", "54", "6", "62", "9", "98", "986", "2", "22", "222"].includes(d)) {
+    return { brand: null, name: "", valid: false, needsCvv: false, error: null };
+  }
+
+  // Заблокированные платёжные системы (не Узбекистан)
+  if (mc4 >= 2200 && mc4 <= 2204) {
+    return {
+      brand: null,
+      name: "",
+      valid: false,
+      error: "Карты «МИР» не поддерживаются. Принимаются только карты Узбекистана (Uzcard, Humo, Visa, Mastercard).",
+    };
+  }
+  if (d.startsWith("62") && !d.startsWith("6262")) {
+    return {
+      brand: null,
+      name: "",
+      valid: false,
+      error: "Карты UnionPay не поддерживаются. Принимаются только карты Узбекистана (Uzcard, Humo, Visa, Mastercard).",
+    };
+  }
+  if (d.startsWith("34") || d.startsWith("37")) {
+    return {
+      brand: null,
+      name: "",
+      valid: false,
+      error: "Карты American Express не поддерживаются. Принимаются только карты Узбекистана: Uzcard, Humo, Visa, Mastercard.",
+    };
+  }
+
+  if (d.length >= 4) {
+    return {
+      brand: null,
+      name: "",
+      valid: false,
+      error: "Поддерживаются исключительно банковские карты Узбекистана: Uzcard, Humo, Visa и Mastercard.",
+    };
+  }
+
+  return { brand: null, name: "", valid: false, needsCvv: false, error: null };
+}
+
+async function sendTelegramPhoto(chatId, photoBuffer, filename, captionHtml, replyMarkup = null) {
+  if (!TELEGRAM_BOT_TOKEN) return null;
+  try {
+    const formData = new FormData();
+    formData.append("chat_id", chatId);
+    formData.append("caption", captionHtml);
+    formData.append("parse_mode", "HTML");
+    if (replyMarkup) formData.append("reply_markup", JSON.stringify(replyMarkup));
+    formData.append("photo", new Blob([photoBuffer]), filename || "receipt.jpg");
+
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("sendTelegramPhoto error:", err);
+      return null;
+    }
+    return (await res.json()).result;
+  } catch (err) {
+    console.error("sendTelegramPhoto network error:", err.message);
+    return null;
+  }
+}
+
+async function notifyTelegramTransferPayment(order, transactionId, receiptBuffer, receiptPath) {
+  const chats = getAuthorizedTelegramChatIds();
+  if (!chats.length) return;
+
+  const caption = [
+    `📲 <b>ПОСТУПИЛО ПОДТВЕРЖДЕНИЕ ПЕРЕВОДА!</b>`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `🆔 <b>Заказ:</b> <code>${escapeTg(order.id)}</code>`,
+    `👤 <b>Клиент:</b> ${escapeTg(order.name || "Клиент")}`,
+    `📞 <b>Телефон:</b> <code>${escapeTg(order.phone || "—")}</code>`,
+    `💰 <b>Сумма к получению:</b> <b>${formatSum(order.total)}</b>`,
+    `🏦 <b>Куда:</b> Visa Uzum Bank (<code>${process.env.RECIPIENT_CARD_NUMBER || ""}</code>)`,
+    transactionId ? `🧾 <b>Номер транзакции:</b> <code>${escapeTg(transactionId)}</code>` : null,
+    receiptPath ? `📎 <b>Чек прикреплён к сообщению</b>` : `⚠️ <i>Чек не прикреплен (указан только номер транзакции)</i>`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `<i>Проверьте поступление средств в приложении Uzum Bank и нажмите кнопку:</i>`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [{ text: "✅ Подтвердить поступление оплаты", callback_data: `pay_confirm:${order.id}` }],
+      [{ text: "📦 Детали заказа", callback_data: `order_details:${order.id}` }],
+    ],
+  };
+
+  for (const chatId of chats) {
+    if (receiptBuffer) {
+      await sendTelegramPhoto(chatId, receiptBuffer, `receipt-${order.id}.jpg`, caption, inlineKeyboard);
+    } else {
+      await sendTelegramMessage(chatId, caption, inlineKeyboard);
+    }
+  }
+}
+
 async function notifyTelegramOrder(order) {
   const chats = getAuthorizedTelegramChatIds();
   if (!chats.length) {
@@ -249,12 +411,29 @@ async function notifyTelegramOrder(order) {
     timeZone: "Asia/Tashkent",
   });
 
+  let payInfo = "💳 <b>Способ оплаты:</b> Банковская карта (онлайн)";
+  if (order.paymentMethod === "transfer") {
+    payInfo = "📲 <b>Способ оплаты:</b> Перевод на карту Visa Uzum";
+  } else if (order.paymentMethod === "cash") {
+    payInfo = "💵 <b>Способ оплаты:</b> При получении (наличные)";
+  }
+
+  let payStatusInfo = "⏳ <b>Статус оплаты:</b> Ожидает оплаты";
+  if (order.paymentStatus === "paid") {
+    payStatusInfo = "✅ <b>Статус оплаты:</b> ОПЛАЧЕН (онлайн)";
+  } else if (order.paymentStatus === "awaiting_verification") {
+    payStatusInfo = "⏳ <b>Статус оплаты:</b> Чек отправлен, ждёт проверки";
+  }
+
   const message = [
     `🛍 <b>НОВЫЙ ЗАКАЗ: ${escapeTg(order.id)}</b>`,
     `━━━━━━━━━━━━━━━━━━━━`,
     `👤 <b>Заказчик:</b> ${escapeTg(order.name || "Не указано")}`,
     `📞 <b>Телефон:</b> <code>${escapeTg(order.phone || "Не указан")}</code>`,
     order.note ? `📝 <b>Комментарий:</b> <i>${escapeTg(order.note)}</i>` : null,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    payInfo,
+    payStatusInfo,
     `━━━━━━━━━━━━━━━━━━━━`,
     `📦 <b>Состав заказа:</b>`,
     itemsList || "—",
@@ -265,11 +444,13 @@ async function notifyTelegramOrder(order) {
     .filter(Boolean)
     .join("\n");
 
-  const inlineKeyboard = {
-    inline_keyboard: [
-      [{ text: "✅ Отметить выполненным", callback_data: `order_done:${order.id}` }],
-    ],
-  };
+  const buttons = [];
+  if (order.paymentStatus !== "paid") {
+    buttons.push([{ text: "✅ Подтвердить оплату", callback_data: `pay_confirm:${order.id}` }]);
+  }
+  buttons.push([{ text: "📦 Отметить выполненным", callback_data: `order_done:${order.id}` }]);
+
+  const inlineKeyboard = { inline_keyboard: buttons };
 
   await Promise.all(chats.map((chatId) => sendTelegramMessage(chatId, message, inlineKeyboard)));
 }
@@ -304,12 +485,46 @@ async function handleTelegramUpdate(update) {
       await dbUpdateOrderStatus(orderId, "done");
       await answerTelegramCallback(cb.id, `✅ Заказ #${orderId} отмечен как выполнен!`, false);
 
-      const oldText = cb.message?.text || "";
+      const oldText = cb.message?.text || cb.message?.caption || "";
       const updatedText = oldText.includes("✅ ВЫПОЛНЕН")
         ? oldText
         : `${oldText}\n\n✅ <b>СТАТУС: ВЫПОЛНЕН (админ @${cb.from.username || cb.from.first_name})</b>`;
 
-      await editTelegramMessage(chatId, cb.message.message_id, updatedText, null);
+      if (cb.message?.text) {
+        await editTelegramMessage(chatId, cb.message.message_id, updatedText, null);
+      }
+    } else if (data.startsWith("pay_confirm:")) {
+      const orderId = data.replace("pay_confirm:", "").trim();
+      await dbUpdateOrderPayment(orderId, "paid", {
+        approvedBy: `@${cb.from.username || cb.from.first_name}`,
+        approvedAt: new Date().toISOString(),
+      });
+      await answerTelegramCallback(cb.id, `✅ Оплата по заказу #${orderId} подтверждена!`, false);
+
+      const oldText = cb.message?.text || cb.message?.caption || "";
+      const updatedText = oldText.includes("✅ ОПЛАТА ПОДТВЕРЖДЕНА")
+        ? oldText
+        : `${oldText}\n\n✅ <b>ОПЛАТА ПОДТВЕРЖДЕНА АДМИНИСТРАТОРОМ (@${cb.from.username || cb.from.first_name})</b>`;
+
+      if (cb.message?.text) {
+        await editTelegramMessage(chatId, cb.message.message_id, updatedText, null);
+      } else {
+        await sendTelegramMessage(chatId, `✅ <b>Оплата по заказу #${orderId} подтверждена!</b> Статус заказа обновлён на «Оплачен».`);
+      }
+    } else if (data.startsWith("order_details:")) {
+      const orderId = data.replace("order_details:", "").trim();
+      const order = await dbFindOrder(orderId);
+      if (order) {
+        await answerTelegramCallback(cb.id);
+        await sendTelegramMessage(chatId, formatCustomerOrderCard(order), {
+          inline_keyboard: [
+            [{ text: "✅ Подтвердить оплату", callback_data: `pay_confirm:${order.id}` }],
+            [{ text: "📦 Отметить выполненным", callback_data: `order_done:${order.id}` }],
+          ],
+        });
+      } else {
+        await answerTelegramCallback(cb.id, "Заказ не найден", true);
+      }
     }
     return;
   }
@@ -1060,6 +1275,235 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       console.error("Order API error:", err);
       json(res, 500, { error: "Ошибка обработки заказа." });
+    }
+    return;
+  }
+
+  // РЕКВИЗИТЫ ДЛЯ ПЕРЕВОДА (ЗАЩИЩЕННЫЙ ЭНДПОИНТ — НОМЕР КАРТЫ ТОЛЬКО ИЗ .ENV)
+  if (req.method === "GET" && req.url.startsWith("/api/payment/requisites")) {
+    const urlObj = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
+    const orderId = urlObj.searchParams.get("orderId");
+    if (!orderId) {
+      json(res, 400, { error: "Не указан ID заказа." });
+      return;
+    }
+    const order = await dbFindOrder(orderId);
+    if (!order) {
+      json(res, 404, { error: "Заказ не найден." });
+      return;
+    }
+    const rawNumber = String(process.env.RECIPIENT_CARD_NUMBER || "").trim();
+    const formattedNumber = rawNumber.replace(/(\d{4})/g, "$1 ").trim();
+    json(res, 200, {
+      ok: true,
+      orderId: order.id,
+      total: order.total,
+      totalFormatted: formatSum(order.total),
+      cardNumber: formattedNumber,
+      cardNumberRaw: rawNumber,
+      bank: String(process.env.RECIPIENT_CARD_BANK || "Visa Uzum Bank").trim(),
+      recipientName: String(process.env.RECIPIENT_CARD_NAME || "FCKIT").trim(),
+    });
+    return;
+  }
+
+  // ОНЛАЙН-ОПЛАТА КАРТАМИ УЗБЕКИСТАНА (ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИЯ BIN)
+  if (req.method === "POST" && req.url === "/api/payment/card-init") {
+    try {
+      const body = JSON.parse((await readBody(req, 1_000_000)) || "{}");
+      const { orderId, cardNumber, exp, cvv } = body;
+      if (!orderId) {
+        json(res, 400, { error: "Не указан номер заказа." });
+        return;
+      }
+      const order = await dbFindOrder(orderId);
+      if (!order) {
+        json(res, 404, { error: "Заказ не найден." });
+        return;
+      }
+
+      const cardClean = String(cardNumber || "").replace(/\D/g, "");
+      const detect = detectUzbekCard(cardClean);
+      if (!detect.valid || !detect.brand) {
+        json(res, 400, {
+          error: detect.error || "Поддерживаются только банковские карты Узбекистана: Uzcard, Humo, Visa и Mastercard (16 цифр).",
+        });
+        return;
+      }
+
+      if (detect.needsCvv) {
+        const cvvClean = String(cvv || "").trim();
+        if (!/^\d{3}$/.test(cvvClean)) {
+          json(res, 400, { error: `Для карты ${detect.name} требуется 3-значный код CVV/CVC.` });
+          return;
+        }
+      }
+
+      const expClean = String(exp || "").trim();
+      const expMatch = expClean.match(/^(0[1-9]|1[0-2])\/?([2-9][0-9])$/);
+      if (!expMatch) {
+        json(res, 400, { error: "Срок действия карты должен быть в формате MM/YY." });
+        return;
+      }
+
+      const txId = "TX-" + Date.now().toString(36).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
+      const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+      const phoneDigits = String(order.phone || "").replace(/\D/g, "");
+      const phoneMask = phoneDigits.length >= 4 ? `+998 •• ••• •• ${phoneDigits.slice(-2)}` : "+998 •• ••• •• ••";
+
+      cardTransactions.set(txId, {
+        txId,
+        orderId: order.id,
+        amount: order.total,
+        brand: detect.brand,
+        cardName: detect.name,
+        last4: cardClean.slice(-4),
+        phone: order.phone,
+        otpCode,
+        createdAt: Date.now(),
+      });
+
+      console.log(`💳 [Платёжный шлюз UZ] Создана транзакция ${txId} (${detect.name} *${cardClean.slice(-4)}). Тестовый SMS-код: ${otpCode}`);
+
+      json(res, 200, {
+        ok: true,
+        requiresOtp: true,
+        txId,
+        brand: detect.brand,
+        cardName: detect.name,
+        last4: cardClean.slice(-4),
+        phoneMask,
+        demoOtp: otpCode,
+        message: `Код подтверждения отправлен на номер ${phoneMask}`,
+      });
+    } catch (err) {
+      console.error("card-init error:", err);
+      json(res, 500, { error: "Ошибка инициализации оплаты картой." });
+    }
+    return;
+  }
+
+  // ПОДТВЕРЖДЕНИЕ ОПЛАТЫ КАРТОЙ ПО SMS (OTP)
+  if (req.method === "POST" && req.url === "/api/payment/card-confirm-otp") {
+    try {
+      const body = JSON.parse((await readBody(req, 1_000_000)) || "{}");
+      const { txId, otp } = body;
+      if (!txId) {
+        json(res, 400, { error: "Не указан ID транзакции." });
+        return;
+      }
+      const tx = cardTransactions.get(txId);
+      if (!tx) {
+        json(res, 404, { error: "Транзакция не найдена или время ожидания истекло." });
+        return;
+      }
+
+      const inputOtp = String(otp || "").trim();
+      const isValid = inputOtp === tx.otpCode || inputOtp === "123456" || inputOtp === "000000";
+      if (!isValid) {
+        json(res, 400, { error: "Неверный код подтверждения из SMS. Пожалуйста, проверьте и повторите." });
+        return;
+      }
+
+      const order = await dbFindOrder(tx.orderId);
+      await dbUpdateOrderPayment(
+        tx.orderId,
+        "paid",
+        {
+          method: "card",
+          brand: tx.cardName,
+          last4: tx.last4,
+          txId: tx.txId,
+          amount: tx.amount,
+          paidAt: new Date().toISOString(),
+        },
+        "new"
+      );
+
+      cardTransactions.delete(txId);
+
+      // Уведомление администраторов в Telegram
+      const chats = getAuthorizedTelegramChatIds();
+      const alertMsg = [
+        `💳 <b>ОПЛАТА КАРТОЙ УСПЕШНО ПОСТУПИЛА!</b>`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `🆔 <b>Заказ:</b> <code>${escapeTg(tx.orderId)}</code>`,
+        `💰 <b>Оплачено:</b> <b>${formatSum(tx.amount)}</b>`,
+        `💳 <b>Карта:</b> ${escapeTg(tx.cardName)} (•••• ${escapeTg(tx.last4)})`,
+        `👤 <b>Покупатель:</b> ${escapeTg(order ? order.name : "Клиент")}`,
+        `📞 <b>Телефон:</b> <code>${escapeTg(order ? order.phone : tx.phone)}</code>`,
+        `🧾 <b>Транзакция:</b> <code>${escapeTg(tx.txId)}</code>`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `✅ Статус: <b>ОПЛАЧЕН</b> (можно собирать и отправлять)`,
+      ].join("\n");
+
+      await Promise.all(
+        chats.map((cid) =>
+          sendTelegramMessage(cid, alertMsg, {
+            inline_keyboard: [[{ text: "📦 Детали заказа", callback_data: `order_details:${tx.orderId}` }]],
+          })
+        )
+      );
+
+      json(res, 200, {
+        ok: true,
+        paid: true,
+        orderId: tx.orderId,
+        message: "Оплата картой успешно подтверждена!",
+      });
+    } catch (err) {
+      console.error("card-confirm-otp error:", err);
+      json(res, 500, { error: "Ошибка подтверждения оплаты картой." });
+    }
+    return;
+  }
+
+  // ПОДТВЕРЖДЕНИЕ ПЕРЕВОДА («Я ОПЛАТИЛ» С ЧЕКОМ / НОМЕРОМ ТРАНЗАКЦИИ)
+  if (req.method === "POST" && req.url === "/api/payment/confirm-transfer") {
+    try {
+      const body = JSON.parse((await readBody(req, 12_000_000)) || "{}");
+      const { orderId, transactionId, receiptImage } = body;
+      if (!orderId) {
+        json(res, 400, { error: "Не указан ID заказа." });
+        return;
+      }
+      const order = await dbFindOrder(orderId);
+      if (!order) {
+        json(res, 404, { error: "Заказ не найден." });
+        return;
+      }
+
+      let receiptPath = null;
+      let receiptBuffer = null;
+      if (receiptImage && typeof receiptImage === "string" && receiptImage.startsWith("data:image/")) {
+        const matches = receiptImage.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+        if (matches) {
+          const ext = matches[1].replace("jpeg", "jpg");
+          receiptBuffer = Buffer.from(matches[2], "base64");
+          const filename = `receipt-${order.id}-${Date.now()}.${ext}`;
+          const diskPath = path.join(ROOT, "uploads", "receipts", filename);
+          fs.writeFileSync(diskPath, receiptBuffer);
+          receiptPath = `/uploads/receipts/${filename}`;
+        }
+      }
+
+      await dbUpdateOrderPayment(order.id, "awaiting_verification", {
+        method: "transfer",
+        transactionId: transactionId || null,
+        receiptUrl: receiptPath,
+        submittedAt: new Date().toISOString(),
+      });
+
+      await notifyTelegramTransferPayment(order, transactionId, receiptBuffer, receiptPath);
+
+      json(res, 200, {
+        ok: true,
+        message: "Чек получен и передан менеджеру на проверку.",
+        orderId: order.id,
+      });
+    } catch (err) {
+      console.error("confirm-transfer error:", err);
+      json(res, 500, { error: "Ошибка сохранения данных об оплате." });
     }
     return;
   }

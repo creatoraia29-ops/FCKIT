@@ -73,9 +73,16 @@ async function initTurso() {
         note TEXT,
         items TEXT,
         total INTEGER,
-        status TEXT DEFAULT 'new'
+        status TEXT DEFAULT 'new',
+        paymentMethod TEXT DEFAULT 'card',
+        paymentStatus TEXT DEFAULT 'pending',
+        paymentDetails TEXT
       );
     `);
+    // Миграции для существующих таблиц
+    try { await db.execute("ALTER TABLE orders ADD COLUMN paymentMethod TEXT DEFAULT 'card'"); } catch (_) {}
+    try { await db.execute("ALTER TABLE orders ADD COLUMN paymentStatus TEXT DEFAULT 'pending'"); } catch (_) {}
+    try { await db.execute("ALTER TABLE orders ADD COLUMN paymentDetails TEXT"); } catch (_) {}
     await db.execute(`
       CREATE TABLE IF NOT EXISTS promotions (
         id TEXT PRIMARY KEY,
@@ -213,8 +220,8 @@ async function dbSaveOrder(order) {
   if (db) {
     try {
       await db.execute({
-        sql: `INSERT INTO orders (id, createdAt, name, phone, note, items, total, status)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT OR REPLACE INTO orders (id, createdAt, name, phone, note, items, total, status, paymentMethod, paymentStatus, paymentDetails)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           order.id,
           order.createdAt || new Date().toISOString(),
@@ -224,6 +231,9 @@ async function dbSaveOrder(order) {
           JSON.stringify(order.items || []),
           order.total || 0,
           order.status || "new",
+          order.paymentMethod || "card",
+          order.paymentStatus || "pending",
+          typeof order.paymentDetails === "string" ? order.paymentDetails : JSON.stringify(order.paymentDetails || {}),
         ],
       });
       console.log(`✅ Заказ #${order.id} записан в облачную базу Turso!`);
@@ -308,12 +318,32 @@ async function dbGetOrders(limit = 20) {
         items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
         total: Number(r.total || 0),
         status: r.status || "new",
+        paymentMethod: r.paymentMethod || "card",
+        paymentStatus: r.paymentStatus || "pending",
+        paymentDetails: typeof r.paymentDetails === "string" ? JSON.parse(r.paymentDetails || "{}") : (r.paymentDetails || {}),
       }));
     } catch (e) {
       console.error("Turso orders select error:", e.message);
     }
   }
   return [];
+}
+
+function parseOrderRow(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    createdAt: r.createdAt,
+    name: r.name,
+    phone: r.phone,
+    note: r.note,
+    items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
+    total: Number(r.total || 0),
+    status: r.status || "new",
+    paymentMethod: r.paymentMethod || "card",
+    paymentStatus: r.paymentStatus || "pending",
+    paymentDetails: typeof r.paymentDetails === "string" ? JSON.parse(r.paymentDetails || "{}") : (r.paymentDetails || {}),
+  };
 }
 
 async function dbFindOrder(query) {
@@ -328,17 +358,7 @@ async function dbFindOrder(query) {
         args: [q.toUpperCase(), q],
       });
       if (res.rows.length) {
-        const r = res.rows[0];
-        return {
-          id: r.id,
-          createdAt: r.createdAt,
-          name: r.name,
-          phone: r.phone,
-          note: r.note,
-          items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
-          total: Number(r.total || 0),
-          status: r.status || "new",
-        };
+        return parseOrderRow(res.rows[0]);
       }
 
       // 2. Поиск по подстроке ID
@@ -347,17 +367,7 @@ async function dbFindOrder(query) {
         args: [`%${q}%`],
       });
       if (res.rows.length) {
-        const r = res.rows[0];
-        return {
-          id: r.id,
-          createdAt: r.createdAt,
-          name: r.name,
-          phone: r.phone,
-          note: r.note,
-          items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
-          total: Number(r.total || 0),
-          status: r.status || "new",
-        };
+        return parseOrderRow(res.rows[0]);
       }
 
       // 3. Поиск по номеру телефона
@@ -368,17 +378,7 @@ async function dbFindOrder(query) {
           args: [`%${digits.slice(-7)}%`],
         });
         if (res.rows.length) {
-          const r = res.rows[0];
-          return {
-            id: r.id,
-            createdAt: r.createdAt,
-            name: r.name,
-            phone: r.phone,
-            note: r.note,
-            items: typeof r.items === "string" ? JSON.parse(r.items || "[]") : r.items,
-            total: Number(r.total || 0),
-            status: r.status || "new",
-          };
+          return parseOrderRow(res.rows[0]);
         }
       }
     } catch (e) {
@@ -386,6 +386,34 @@ async function dbFindOrder(query) {
     }
   }
   return null;
+}
+
+async function dbUpdateOrderPayment(orderId, paymentStatus, paymentDetails = null, overallStatus = null) {
+  const db = getClient();
+  if (db) {
+    try {
+      const detailsStr = paymentDetails ? (typeof paymentDetails === "string" ? paymentDetails : JSON.stringify(paymentDetails)) : null;
+      if (overallStatus) {
+        await db.execute({
+          sql: detailsStr
+            ? `UPDATE orders SET paymentStatus = ?, paymentDetails = ?, status = ? WHERE id = ?`
+            : `UPDATE orders SET paymentStatus = ?, status = ? WHERE id = ?`,
+          args: detailsStr ? [paymentStatus, detailsStr, overallStatus, String(orderId)] : [paymentStatus, overallStatus, String(orderId)],
+        });
+      } else {
+        await db.execute({
+          sql: detailsStr
+            ? `UPDATE orders SET paymentStatus = ?, paymentDetails = ? WHERE id = ?`
+            : `UPDATE orders SET paymentStatus = ? WHERE id = ?`,
+          args: detailsStr ? [paymentStatus, detailsStr, String(orderId)] : [paymentStatus, String(orderId)],
+        });
+      }
+      return true;
+    } catch (e) {
+      console.error("Turso update order payment error:", e.message);
+    }
+  }
+  return false;
 }
 
 async function dbUpdateOrderStatus(orderId, status) {
@@ -469,6 +497,7 @@ module.exports = {
   dbGetOrders,
   dbFindOrder,
   dbUpdateOrderStatus,
+  dbUpdateOrderPayment,
   dbGetPromotions,
   dbSavePromotions,
   dbGetAuthorizedTelegramUsers,

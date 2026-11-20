@@ -8,3 +8,5 @@ node_modules
 telegram_chats.json
 telegram_authorized_users.json
 cloudflared.exe
+uploads/*
+!uploads/receipts/.gitkeep
