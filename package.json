@@ -1,0 +1,24 @@
+{
+  "name": "www",
+  "version": "1.0.0",
+  "description": "",
+  "main": "admin.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/creatoraia29-ops/FCKIT.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/creatoraia29-ops/FCKIT/issues"
+  },
+  "homepage": "https://github.com/creatoraia29-ops/FCKIT#readme",
+  "dependencies": {
+    "@libsql/client": "^0.18.0"
+  }
+}

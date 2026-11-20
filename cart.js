@@ -82,6 +82,11 @@ function bindCheckout() {
       note: data.get("note"),
     });
     if (!order) return;
+    fetch("/api/order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(order),
+    }).catch((err) => console.error("Ошибка отправки заказа на сервер:", err));
     cartBoard.innerHTML = `
       <div class="cart-empty">
         <p>Заказ ${escapeHtml(order.id)} принят ${escapeHtml(formatDateTime(order.createdAt))}.</p>

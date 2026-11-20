@@ -255,6 +255,20 @@ button {
   border-bottom: 1px solid var(--line);
 }
 
+.intro--compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.intro--compact .intro-right {
+  width: auto;
+  margin-left: auto;
+}
+
 .logo {
   display: grid;
   justify-self: start;
@@ -338,6 +352,38 @@ button {
 .hero-copy {
   margin: 0;
   color: var(--muted);
+}
+
+.hero-title {
+  margin: 0;
+  font-family: var(--font-title, inherit);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+}
+
+.hero-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--fg);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.hero-list a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  word-break: break-all;
+}
+
+.hero-list a:hover {
+  opacity: 0.8;
 }
 
 .catalog {
@@ -914,6 +960,11 @@ a.card {
   margin: 0 0 8px;
 }
 
+.intro--compact .page-back {
+  margin: 0;
+  flex-shrink: 0;
+}
+
 .ball-flight {
   position: fixed;
   z-index: 45;
@@ -1320,6 +1371,255 @@ body[data-page="admin"] .admin-shell {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Расширенные стили ценников и бейджей */
+.price-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.price-main {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.price-prefix {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.price-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.price-installment {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.price-benefit {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  width: fit-content;
+}
+
+.price-tier {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.custom-badge {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Новые компоненты админ-панели */
+.admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-nav .btn.is-active {
+  background: var(--white);
+  color: var(--black);
+  border-color: var(--white);
+}
+
+[data-theme="light"] .admin-nav .btn.is-active {
+  background: var(--black);
+  color: var(--white);
+  border-color: var(--black);
+}
+
+.admin-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-section[hidden] {
+  display: none !important;
+}
+
+.admin-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-section-header h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.admin-card-box {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #111111;
+}
+
+[data-theme="light"] .admin-card-box {
+  background: #f4f4f4;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #111111;
+}
+
+[data-theme="light"] .admin-table-wrap {
+  background: #f4f4f4;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.admin-table th {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #222;
+  display: block;
+}
+
+.admin-table-thumb-empty {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: #888;
+  border: 1px dashed var(--line);
+}
+
+.badge-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.badge-tag.is-hit {
+  background: #ffffff;
+  color: #000000;
+}
+
+/* Сетка конструктора цен */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.25fr) minmax(280px, 0.75fr);
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.live-preview-box {
+  position: sticky;
+  top: 24px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #111111;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+[data-theme="light"] .live-preview-box {
+  background: #f4f4f4;
+}
+
+.admin-input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 600px) {
+  .admin-input-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-dialog {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #111111;
+  color: var(--text);
+  padding: 24px;
+  max-width: 540px;
+  width: calc(100% - 32px);
+  margin: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] .admin-dialog {
+  background: #ffffff;
+  color: #111111;
+}
+
+.admin-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
 }
 
 

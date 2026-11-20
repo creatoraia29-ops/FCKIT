@@ -1,6 +1,14 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const {
+  initTurso,
+  dbGetProducts,
+  dbSaveProducts,
+  dbSaveOrder,
+  dbGetPromotions,
+  dbSavePromotions,
+} = require("./db.js");
 
 const ROOT = __dirname;
 const MODEL = "gemini-3.5-flash-lite";
@@ -22,6 +30,143 @@ const ALLOWED_IMAGE = new Set(["image/jpeg", "image/png", "image/webp"]);
 loadEnv();
 
 const PORT = Number(process.env.PORT) || 5500;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "9007119182:AAEI88xn8BC5yjp9ZCpHjei2wxZIEbSp5Gs";
+let telegramOffset = 0;
+
+function formatSum(value) {
+  return `${new Intl.NumberFormat("ru-RU").format(value || 0)} сум`;
+}
+
+function escapeTg(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function getTelegramChatIds() {
+  const chats = new Set();
+  if (process.env.TELEGRAM_CHAT_ID) {
+    process.env.TELEGRAM_CHAT_ID
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((id) => chats.add(id));
+  }
+  const file = path.join(ROOT, "telegram_chats.json");
+  if (fs.existsSync(file)) {
+    try {
+      const list = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (Array.isArray(list)) list.forEach((id) => chats.add(String(id)));
+    } catch {}
+  }
+  return Array.from(chats);
+}
+
+function saveTelegramChatId(chatId) {
+  const chats = new Set(getTelegramChatIds());
+  chats.add(String(chatId));
+  const file = path.join(ROOT, "telegram_chats.json");
+  try {
+    fs.writeFileSync(file, JSON.stringify(Array.from(chats), null, 2), "utf8");
+  } catch (err) {
+    console.error("Не удалось сохранить telegram_chats.json:", err.message);
+  }
+}
+
+async function sendTelegramMessage(chatId, html) {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: html,
+        parse_mode: "HTML",
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error(`Telegram API error (${chatId}):`, data);
+    }
+  } catch (err) {
+    console.error(`Ошибка отправки в Telegram (${chatId}):`, err.message);
+  }
+}
+
+async function notifyTelegramOrder(order) {
+  const chats = getTelegramChatIds();
+  if (!chats.length) {
+    console.log("⚠️ Заказ получен, но нет подписчиков в Telegram. Напишите /start боту @FCKIT_TASBot");
+    return;
+  }
+
+  const itemsList = (order.items || [])
+    .map((item, i) => {
+      const dept = item.department === "men" ? "Мужской" : "Женский";
+      const totalItem = formatSum(item.price * item.qty);
+      return `${i + 1}. <b>${escapeTg(item.title)}</b>\n   ▫️ ${item.qty} шт. × ${formatSum(item.price)} = <b>${totalItem}</b>\n   ▫️ <i>${dept} · ${escapeTg(item.section || "")}</i>`;
+    })
+    .join("\n\n");
+
+  const dateStr = new Date(order.createdAt || Date.now()).toLocaleString("ru-RU", {
+    timeZone: "Asia/Tashkent",
+  });
+
+  const message = [
+    `🛍 <b>НОВЫЙ ЗАКАЗ: ${escapeTg(order.id)}</b>`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `👤 <b>Заказчик:</b> ${escapeTg(order.name || "Не указано")}`,
+    `📞 <b>Телефон:</b> <code>${escapeTg(order.phone || "Не указан")}</code>`,
+    order.note ? `📝 <b>Комментарий:</b> <i>${escapeTg(order.note)}</i>` : null,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `📦 <b>Состав заказа:</b>`,
+    itemsList || "—",
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `💰 <b>ИТОГО К ОПЛАТЕ: ${formatSum(order.total)}</b>`,
+    `🕒 <b>Время (Ташкент):</b> ${dateStr}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await Promise.all(chats.map((chatId) => sendTelegramMessage(chatId, message)));
+}
+
+async function pollTelegramUpdates() {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${telegramOffset}&timeout=15`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.result)) {
+        for (const update of data.result) {
+          telegramOffset = update.update_id + 1;
+          const msg = update.message;
+          if (!msg || !msg.chat) continue;
+          const chatId = msg.chat.id;
+          const text = (msg.text || "").trim();
+
+          if (text.startsWith("/start") || text.startsWith("/admin")) {
+            saveTelegramChatId(chatId);
+            const userTitle = msg.chat.username ? `@${msg.chat.username}` : (msg.chat.first_name || "Админ");
+            console.log(`Telegram Bot: подключён чат ${chatId} (${userTitle})`);
+            await sendTelegramMessage(
+              chatId,
+              `✅ <b>Уведомления FCKIT подключены!</b>\n\nЗдравствуйте, ${escapeTg(userTitle)}!\nСюда будут автоматически приходить все новые заказы из магазина с данными покупателя и списком товаров.`
+            );
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // network timeout or error, continue
+  } finally {
+    setTimeout(pollTelegramUpdates, 2000);
+  }
+}
 
 function loadEnv() {
   const file = path.join(ROOT, ".env");
@@ -44,6 +189,12 @@ function loadEnv() {
 }
 
 function loadProducts() {
+  const pfile = path.join(ROOT, "products.json");
+  if (fs.existsSync(pfile)) {
+    try {
+      return JSON.parse(fs.readFileSync(pfile, "utf8"));
+    } catch {}
+  }
   const src = fs.readFileSync(path.join(ROOT, "store.js"), "utf8");
   const match = src.match(/const PRODUCTS = (\[[\s\S]*?\]);/);
   if (!match) return [];
@@ -63,7 +214,7 @@ function catalogText() {
 function systemPrompt() {
   return `Ты стилист интернет-магазина FCKIT. Отвечай только по-русски, коротко и спокойно.
 
-FCKIT заказывает одежду напрямую из Китая, без своего производства. Есть мужская и женская линии: головные уборы, верх, низ, обувь. Цены в сумах. Доставка по Узбекистану 1–3 дня через UzPost, BTS и Express24. Контакты: Instagram, Telegram, VK, WhatsApp. Заказ оформляется в корзине на сайте.
+FCKIT заказывает одежду напрямую из Китая, без своего производства. Есть мужская и женская линии: головные уборы, верх, низ, обувь. Цены в сумах. Доставка в любую точку Республики Узбекистан занимает 7–10 дней. Контакты: Instagram, Telegram. Заказ оформляется в корзине на сайте.
 
 Каталог (рекомендуй только эти id):
 ${catalogText()}
@@ -233,6 +384,65 @@ async function askGemini({ messages, image }) {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (req.method === "GET" && req.url === "/api/products") {
+    const list = await dbGetProducts();
+    json(res, 200, list);
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/products") {
+    try {
+      const list = JSON.parse((await readBody(req, 2_000_000)) || "[]");
+      if (!Array.isArray(list)) {
+        json(res, 400, { error: "Ожидался массив товаров." });
+        return;
+      }
+      await dbSaveProducts(list);
+      json(res, 200, { ok: true, count: list.length });
+    } catch (err) {
+      json(res, 500, { error: "Не удалось сохранить товары: " + err.message });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/api/promotions") {
+    const list = await dbGetPromotions();
+    json(res, 200, list);
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/promotions") {
+    try {
+      const list = JSON.parse((await readBody(req, 1_000_000)) || "[]");
+      if (!Array.isArray(list)) {
+        json(res, 400, { error: "Ожидался массив акций." });
+        return;
+      }
+      await dbSavePromotions(list);
+      json(res, 200, { ok: true, count: list.length });
+    } catch (err) {
+      json(res, 500, { error: "Не удалось сохранить акции: " + err.message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/order") {
+    try {
+      const body = JSON.parse((await readBody(req, 1_000_000)) || "{}");
+      if (!body.id || !body.items) {
+        json(res, 400, { error: "Некорректные данные заказа." });
+        return;
+      }
+      dbSaveOrder(body).catch((err) => console.error("DB Order error:", err));
+      notifyTelegramOrder(body).catch((err) => console.error("Telegram error:", err));
+      json(res, 200, { ok: true, id: body.id });
+    } catch (err) {
+      console.error("Order API error:", err);
+      json(res, 500, { error: "Ошибка обработки заказа." });
+    }
+    return;
+  }
+
   if (req.method === "POST" && req.url === "/api/assistant") {
     try {
       const body = JSON.parse((await readBody(req, 4_000_000)) || "{}");
@@ -272,4 +482,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`FCKIT: http://127.0.0.1:${PORT}`);
+  initTurso();
+  pollTelegramUpdates();
 });

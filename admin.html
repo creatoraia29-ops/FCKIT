@@ -4,17 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Заказы</title>
+    <title>FCKIT — Панель администратора</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=21" />
+    <link rel="stylesheet" href="styles.css?v=25" />
   </head>
   <body data-page="admin">
     <div class="admin-lock" id="adminLock">
       <form class="admin-login" id="adminLogin" autocomplete="off">
         <p class="eyebrow">Только для владельца</p>
-        <h1>Заказы</h1>
+        <h1>Вход в управление</h1>
         <label class="checkout__field">
           <span>Пароль</span>
           <input name="password" type="password" required autocomplete="current-password" />
@@ -27,23 +27,315 @@
     <div class="admin-shell" id="adminApp" hidden>
       <header class="admin-bar">
         <div>
-          <p class="eyebrow">Владелец</p>
-          <h1>Заказы</h1>
+          <p class="eyebrow">Магазин FCKIT</p>
+          <h1 id="adminPanelHeading">Панель управления</h1>
         </div>
         <button type="button" class="btn" id="adminLogout">Выйти</button>
       </header>
-      <div class="admin-head">
-        <div class="admin-stats" id="adminStats"></div>
-        <div class="segment" role="group" aria-label="Фильтр заказов">
-          <button type="button" class="btn is-active" data-order-filter="all">Все</button>
-          <button type="button" class="btn" data-order-filter="new">Новые</button>
-          <button type="button" class="btn" data-order-filter="done">Выполненные</button>
+
+      <!-- Навигация по вкладкам админки -->
+      <nav class="admin-nav" role="tablist" aria-label="Разделы управления">
+        <button type="button" class="btn is-active" data-admin-tab="orders">📦 Заказы</button>
+        <button type="button" class="btn" data-admin-tab="products">🏷 Товары и витрина</button>
+        <button type="button" class="btn" data-admin-tab="pricing">💳 Цены и ценники</button>
+        <button type="button" class="btn" data-admin-tab="promos">⚡️ Акции и расписание</button>
+      </nav>
+
+      <!-- 1. Вкладка: Заказы -->
+      <section class="admin-section" id="sectionOrders">
+        <div class="admin-head">
+          <div class="admin-stats" id="adminStats"></div>
+          <div class="segment" role="group" aria-label="Фильтр заказов">
+            <button type="button" class="btn is-active" data-order-filter="all">Все</button>
+            <button type="button" class="btn" data-order-filter="new">Новые</button>
+            <button type="button" class="btn" data-order-filter="done">Выполненные</button>
+          </div>
         </div>
-      </div>
-      <div id="adminBoard"></div>
+        <div id="adminBoard"></div>
+      </section>
+
+      <!-- 2. Вкладка: Товары и витрина -->
+      <section class="admin-section" id="sectionProducts" hidden>
+        <!-- Управление блоками витрины -->
+        <div class="admin-card-box">
+          <div class="admin-section-header">
+            <div>
+              <h2>Управление витриной главной страницы</h2>
+              <p class="eyebrow" style="margin-top: 4px;">Быстрая замена позиций на сайте без правки кода</p>
+            </div>
+            <button type="button" class="btn btn-primary" id="btnSaveShowcase">Применить витрину</button>
+          </div>
+          <div class="admin-input-grid" style="margin-top: 14px;">
+            <label class="checkout__field">
+              <span>Хит продаж (главный блок #hitBoard)</span>
+              <select id="showcaseHitSelect" class="btn" style="text-align: left; width: 100%; border-radius: 6px;"></select>
+            </label>
+            <p class="hero-copy" style="align-self: center; font-size: 13px;">
+              Позиции со скидкой автоматически попадают в витрину «Горячие цены» на главной странице.
+            </p>
+          </div>
+        </div>
+
+        <!-- Таблица всех товаров -->
+        <div class="admin-section-header" style="margin-top: 10px;">
+          <h2>Каталог товаров (<span id="productsCount">0</span>)</h2>
+          <button type="button" class="btn btn-primary" id="btnNewProduct">+ Добавить товар</button>
+        </div>
+
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th style="width: 60px;">Фото</th>
+                <th>Название</th>
+                <th>Отдел / Раздел</th>
+                <th>Базовая цена</th>
+                <th>Скидка</th>
+                <th>Хит</th>
+                <th style="text-align: right;">Действия</th>
+              </tr>
+            </thead>
+            <tbody id="productsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3. Вкладка: Цены и ценники -->
+      <section class="admin-section" id="sectionPricing" hidden>
+        <div class="pricing-grid">
+          <form class="admin-card-box" id="priceConfigForm">
+            <h2>Настройка стоимости и оформление ценника</h2>
+            <p class="hero-copy" style="font-size: 13px; margin-bottom: 16px;">
+              Выберите товар для изменения финансовых параметров и текста ценника.
+            </p>
+
+            <label class="checkout__field">
+              <span>Товар для редактирования</span>
+              <select id="priceProductSelect" class="btn" style="text-align: left; width: 100%; border-radius: 6px;"></select>
+            </label>
+
+            <div class="admin-input-grid" style="margin-top: 12px;">
+              <label class="checkout__field">
+                <span>Базовая цена (сум) *</span>
+                <input type="number" id="inpBasePrice" step="1000" min="1000" required />
+              </label>
+              <label class="checkout__field">
+                <span>Старая цена (зачёркнутая)</span>
+                <input type="number" id="inpOldPrice" step="1000" min="0" placeholder="Оставьте пустым, если нет скидки" />
+              </label>
+            </div>
+
+            <!-- Разбиение стоимости -->
+            <h3 style="margin-top: 18px; font-size: 16px;">Разбиение стоимости (рассрочка и карго)</h3>
+            <div class="admin-input-grid">
+              <label class="checkout__field">
+                <span>Срок рассрочки (мес.)</span>
+                <input type="number" id="inpInstallmentMonths" min="1" max="24" value="4" />
+              </label>
+              <label class="checkout__field">
+                <span>Вес (граммы, карго 15.000 сум / 100г)</span>
+                <input type="number" id="inpWeightGram" step="50" min="0" placeholder="напр. 500" />
+              </label>
+            </div>
+
+            <!-- Многоуровневые цены -->
+            <h3 style="margin-top: 18px; font-size: 16px;">Многоуровневые цены (скидка от количества)</h3>
+            <div class="admin-input-grid">
+              <label class="checkout__field">
+                <span>Опт от скольких штук</span>
+                <input type="number" id="inpTierQty" min="2" max="100" placeholder="напр. 3" />
+              </label>
+              <label class="checkout__field">
+                <span>Цена за 1 шт. при опте (сум)</span>
+                <input type="number" id="inpTierPrice" step="1000" min="0" placeholder="напр. 340000" />
+              </label>
+            </div>
+
+            <!-- Визуальный кастомизатор ценника -->
+            <h3 style="margin-top: 18px; font-size: 16px;">Оформление и роспись ценника</h3>
+            <div class="admin-input-grid">
+              <label class="checkout__field">
+                <span>Префикс перед ценой</span>
+                <input type="text" id="inpPricePrefix" placeholder="напр. «от» или «всего»" />
+              </label>
+              <label class="checkout__field">
+                <span>Поясняющая выгода / подпись</span>
+                <input type="text" id="inpBenefitText" placeholder="напр. «Экономия 40 000 сум»" />
+              </label>
+            </div>
+
+            <div class="admin-input-grid" style="margin-top: 12px;">
+              <label class="checkout__field">
+                <span>Текст плашки-стикера</span>
+                <input type="text" id="inpBadgeText" placeholder="напр. HIT, NEW, −30%" />
+              </label>
+              <label class="checkout__field">
+                <span>Цвет акцента ценника</span>
+                <input type="color" id="inpAccentColor" value="#ffffff" style="height: 42px; cursor: pointer; padding: 2px;" />
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="margin-top: 20px; width: 100%;">
+              💾 Сохранить параметры ценника
+            </button>
+          </form>
+
+          <!-- Живой предпросмотр ценника (Live Preview) -->
+          <div class="live-preview-box">
+            <div>
+              <p class="eyebrow">Живой предпросмотр на сайте</p>
+              <h3 style="margin-top: 4px; font-size: 18px;">Как ценник выглядит на витрине</h3>
+            </div>
+            <div id="livePreviewContainer"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Вкладка: Маркетинговые акции -->
+      <section class="admin-section" id="sectionPromos" hidden>
+        <div class="admin-card-box">
+          <div class="admin-section-header">
+            <h2>Добавить маркетинговую акцию</h2>
+          </div>
+          <form id="promoForm" style="margin-top: 14px;">
+            <div class="admin-input-grid">
+              <label class="checkout__field">
+                <span>Название акции</span>
+                <input type="text" id="promoName" required placeholder="напр. Зимний SALE" />
+              </label>
+              <label class="checkout__field">
+                <span>Текст плашки / стикера</span>
+                <input type="text" id="promoBadge" required placeholder="напр. −25% SALE" />
+              </label>
+            </div>
+
+            <div class="admin-input-grid" style="margin-top: 12px;">
+              <label class="checkout__field">
+                <span>Скидка (%)</span>
+                <input type="number" id="promoDiscount" min="1" max="90" required value="20" />
+              </label>
+              <label class="checkout__field">
+                <span>Категория применения</span>
+                <select id="promoTarget" class="btn" style="text-align: left; width: 100%; border-radius: 6px;">
+                  <option value="all">Все товары</option>
+                  <option value="hats">Головные уборы</option>
+                  <option value="tops">Верх</option>
+                  <option value="bottoms">Низ</option>
+                  <option value="shoes">Обувь</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="admin-input-grid" style="margin-top: 12px;">
+              <label class="checkout__field">
+                <span>Дата начала</span>
+                <input type="date" id="promoStart" required />
+              </label>
+              <label class="checkout__field">
+                <span>Дата окончания</span>
+                <input type="date" id="promoEnd" required />
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="margin-top: 16px;">
+              + Создать акцию
+            </button>
+          </form>
+        </div>
+
+        <div class="admin-section-header" style="margin-top: 10px;">
+          <h2>Список акций и спецпредложений</h2>
+        </div>
+
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Название</th>
+                <th>Плашка</th>
+                <th>Скидка</th>
+                <th>Категория</th>
+                <th>Период</th>
+                <th>Статус</th>
+                <th style="text-align: right;">Действия</th>
+              </tr>
+            </thead>
+            <tbody id="promosTableBody"></tbody>
+          </table>
+        </div>
+      </section>
     </div>
 
-    <script src="store.js?v=21"></script>
-    <script src="admin.js?v=3"></script>
+    <!-- Модальное окно редактирования/добавления товара -->
+    <dialog class="admin-dialog" id="productModal">
+      <form id="productEditForm" method="dialog">
+        <h2 id="modalHeading" style="margin-bottom: 16px;">Товар</h2>
+        <input type="hidden" id="editId" />
+
+        <label class="checkout__field">
+          <span>Название товара *</span>
+          <input type="text" id="editTitle" required />
+        </label>
+
+        <div class="admin-input-grid" style="margin-top: 12px;">
+          <label class="checkout__field">
+            <span>Отдел</span>
+            <select id="editDepartment" class="btn" style="text-align: left; width: 100%; border-radius: 6px;">
+              <option value="men">Мужской</option>
+              <option value="women">Женский</option>
+            </select>
+          </label>
+          <label class="checkout__field">
+            <span>Раздел</span>
+            <select id="editSection" class="btn" style="text-align: left; width: 100%; border-radius: 6px;">
+              <option value="hats">Головные уборы</option>
+              <option value="tops">Верх</option>
+              <option value="bottoms">Низ</option>
+              <option value="shoes">Обувь</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="admin-input-grid" style="margin-top: 12px;">
+          <label class="checkout__field">
+            <span>Базовая цена (сум) *</span>
+            <input type="number" id="editPrice" step="1000" min="1000" required />
+          </label>
+          <label class="checkout__field">
+            <span>Скидочная цена (сум)</span>
+            <input type="number" id="editSale" step="1000" min="0" placeholder="Если есть скидка" />
+          </label>
+        </div>
+
+        <div class="admin-input-grid" style="margin-top: 12px;">
+          <label class="checkout__field">
+            <span>Путь к фото</span>
+            <input type="text" id="editImage" placeholder="img/hoodie.jpg" />
+          </label>
+          <label class="checkout__field">
+            <span>Цвет подложки (HEX)</span>
+            <input type="text" id="editShade" placeholder="#2A2A3A" value="#1A1A1A" />
+          </label>
+        </div>
+
+        <label class="checkout__field" style="margin-top: 12px;">
+          <span>Описание</span>
+          <textarea id="editText" rows="2" style="width: 100%; border-radius: 6px; padding: 8px; background: #111; color: #eee; border: 1px solid var(--line);"></textarea>
+        </label>
+
+        <label style="display: flex; align-items: center; gap: 8px; margin-top: 14px; cursor: pointer;">
+          <input type="checkbox" id="editHit" />
+          <span>Отметить как «Хит продаж»</span>
+        </label>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn" id="btnModalCancel">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="store.js?v=25"></script>
+    <script src="admin.js?v=25"></script>
   </body>
 </html>

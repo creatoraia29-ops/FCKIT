@@ -13,17 +13,20 @@ const DEPARTMENT_TITLES = {
   women: "Женский",
 };
 
-const PRODUCTS = [
-  { id: 1, department: "men", section: "hats", title: "Шерстяная шапка Orbit", price: 154000, shade: "#3A3A3A", text: "Плотная шерсть, спокойная посадка. На каждый день и на холодный вечер." },
+const PRODUCTS_KEY = "fckit-products";
+const PROMOS_KEY = "fckit-promos";
+
+const INITIAL_PRODUCTS = [
+  { id: 1, department: "men", section: "hats", title: "Шерстяная шапка Orbit", price: 154000, sale: 119000, shade: "#3A3A3A", text: "Плотная шерсть, спокойная посадка. На каждый день и на холодный вечер." },
   { id: 2, department: "men", section: "hats", title: "Кепка Night Peak", price: 119000, sale: 89000, shade: "#1A1A1A", text: "Хлопковая кепка с жёстким козырьком. Держит форму и не бросается в глаза." },
   { id: 3, department: "men", section: "tops", title: "Свитер Rib Knit", price: 284000, shade: "#111111", image: "img/sweater.jpg", text: "Чёрный ребристый свитер. Плотная вязка, прямой силуэт, без лишнего декора." },
   { id: 4, department: "men", section: "tops", title: "Зип-худи Number Grid", price: 379000, hit: true, shade: "#2A2A3A", image: "img/hoodie.jpg", text: "Вареный зип-худи с капюшоном и принтом. Короткий крой, удобный на каждый день." },
   { id: 5, department: "men", section: "bottoms", title: "Брюки Three Stripe", price: 320000, hit: true, shade: "#C8C8C8", image: "img/pants.jpg", text: "Свободные брюки с лампасами. Мягкая посадка, городской крой." },
   { id: 6, department: "men", section: "bottoms", title: "Шорты Core Black", price: 213000, sale: 159000, shade: "#111111", image: "img/shorts.jpg", text: "Чёрные шорты на резинке. Спокойный крой, на лето и зал." },
-  { id: 7, department: "men", section: "shoes", title: "Кроссовки Mesh Runner", price: 474000, hit: true, shade: "#E8E8E8", image: "img/sneakers-mesh.jpg", text: "Белые кроссовки с сеткой и воздушной подошвой. На каждый день." },
+  { id: 7, department: "men", section: "shoes", title: "Кроссовки Mesh Runner", price: 474000, sale: 389000, hit: true, shade: "#E8E8E8", image: "img/sneakers-mesh.jpg", text: "Белые кроссовки с сеткой и воздушной подошвой. На каждый день." },
   { id: 8, department: "men", section: "shoes", title: "Кеды Star Court", price: 426000, hit: true, shade: "#F2F2F2", image: "img/sneakers-star.jpg", text: "Кожаные кеды со звездой. Лёгкий винтажный вид, низкий ход." },
   { id: 9, department: "women", section: "hats", title: "Берет Lilac", price: 166000, sale: 129000, shade: "#6E6E6E", text: "Мягкий берет, держит объём. Закрывает голову без давления." },
-  { id: 10, department: "women", section: "hats", title: "Панама Soft Glow", price: 142000, shade: "#D8D8D8", text: "Лёгкая панама на сезон. Защищает от солнца и не мнётся в сумке." },
+  { id: 10, department: "women", section: "hats", title: "Панама Soft Glow", price: 142000, sale: 99000, shade: "#D8D8D8", text: "Лёгкая панама на сезон. Защищает от солнца и не мнётся в сумке." },
   { id: 11, department: "women", section: "tops", title: "Свитер Rib Knit", price: 284000, hit: true, shade: "#111111", image: "img/sweater.jpg", text: "Чёрный ребристый свитер. Плотная вязка, прямой силуэт, без лишнего декора." },
   { id: 12, department: "women", section: "tops", title: "Зип-худи Number Grid", price: 379000, shade: "#2A2A3A", image: "img/hoodie.jpg", text: "Вареный зип-худи с капюшоном и принтом. Короткий крой, удобный на каждый день." },
   { id: 13, department: "women", section: "bottoms", title: "Брюки Three Stripe", price: 320000, sale: 249000, shade: "#C8C8C8", image: "img/pants.jpg", text: "Свободные брюки с лампасами. Мягкая посадка, городской крой." },
@@ -31,6 +34,76 @@ const PRODUCTS = [
   { id: 15, department: "women", section: "shoes", title: "Кроссовки Mesh Runner", price: 474000, shade: "#E8E8E8", image: "img/sneakers-mesh.jpg", text: "Белые кроссовки с сеткой и воздушной подошвой. На каждый день." },
   { id: 16, department: "women", section: "shoes", title: "Кеды Star Court", price: 426000, sale: 339000, shade: "#F2F2F2", image: "img/sneakers-star.jpg", text: "Кожаные кеды со звездой. Лёгкий винтажный вид, низкий ход." },
 ];
+
+function getStoredProducts() {
+  try {
+    const raw = localStorage.getItem(PRODUCTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return INITIAL_PRODUCTS;
+}
+
+let PRODUCTS = getStoredProducts();
+
+function saveProducts(list) {
+  PRODUCTS = list;
+  try {
+    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(list));
+  } catch {}
+  return fetch("/api/products", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(list),
+  }).catch(() => {});
+}
+
+function getStoredPromos() {
+  try {
+    const raw = localStorage.getItem(PROMOS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
+let PROMOTIONS = getStoredPromos();
+
+function savePromos(list) {
+  PROMOTIONS = list;
+  try {
+    localStorage.setItem(PROMOS_KEY, JSON.stringify(list));
+  } catch {}
+  return fetch("/api/promotions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(list),
+  }).catch(() => {});
+}
+
+function syncFromServer() {
+  fetch("/api/products")
+    .then((r) => r.json())
+    .then((list) => {
+      if (Array.isArray(list) && list.length) {
+        PRODUCTS = list;
+        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(list));
+      }
+    })
+    .catch(() => {});
+
+  fetch("/api/promotions")
+    .then((r) => r.json())
+    .then((list) => {
+      if (Array.isArray(list)) {
+        PROMOTIONS = list;
+        localStorage.setItem(PROMOS_KEY, JSON.stringify(list));
+      }
+    })
+    .catch(() => {});
+}
+if (typeof window !== "undefined") syncFromServer();
 
 function formatPrice(value) {
   return `${new Intl.NumberFormat("ru-RU").format(value)} сум`;
@@ -46,13 +119,42 @@ function salePercent(item) {
 }
 
 function priceMarkup(item, className = "card__price") {
-  if (!item.sale) return `<p class="${className}">${formatPrice(item.price)}</p>`;
-  return `<p class="${className}"><span class="price-old">${formatPrice(item.price)}</span>${formatPrice(item.sale)}</p>`;
+  const effectivePrice = item.sale ?? item.price;
+  const tag = item.tagStyle || {};
+  const prefix = tag.prefix ? `<span class="price-prefix">${escapeHtml(tag.prefix)} </span>` : "";
+  const oldPriceHtml = item.sale ? `<span class="price-old">${formatPrice(item.price)}</span>` : "";
+  const mainPriceHtml = `${prefix}${oldPriceHtml}<span class="price-current" style="${tag.accentColor ? `color: ${tag.accentColor};` : ""}">${formatPrice(effectivePrice)}</span>`;
+
+  let extraHtml = "";
+  if (item.installmentMonths && item.installmentMonths > 1) {
+    const monthVal = Math.round(effectivePrice / item.installmentMonths);
+    extraHtml += `<span class="price-installment">по ${formatPrice(monthVal)}/мес</span>`;
+  }
+  if (tag.benefitText) {
+    extraHtml += `<span class="price-benefit">${escapeHtml(tag.benefitText)}</span>`;
+  }
+  if (item.tiers && item.tiers.length) {
+    const t = item.tiers[0];
+    extraHtml += `<span class="price-tier">от ${t.minQty} шт: ${formatPrice(t.price)}</span>`;
+  }
+
+  return `
+    <div class="price-block ${className}">
+      <p class="price-main">${mainPriceHtml}</p>
+      ${extraHtml ? `<div class="price-extras">${extraHtml}</div>` : ""}
+    </div>`;
 }
 
 function dealBadge(item) {
-  if (!item.sale) return "";
-  return `<span class="deal-badge">−${salePercent(item)}%</span>`;
+  if (item.tagStyle && item.tagStyle.badgeText) {
+    const bg = item.tagStyle.badgeBg || "var(--white)";
+    const color = item.tagStyle.badgeColor || "var(--black)";
+    return `<span class="deal-badge custom-badge" style="background:${bg}; color:${color};">${escapeHtml(item.tagStyle.badgeText)}</span>`;
+  }
+  if (item.sale) {
+    return `<span class="deal-badge">−${salePercent(item)}%</span>`;
+  }
+  return "";
 }
 
 function visualStyle(item) {

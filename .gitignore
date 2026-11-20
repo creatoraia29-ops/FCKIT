@@ -4,3 +4,5 @@ Desktop.ini
 *.log
 .env
 .env.*
+node_modules
+telegram_chats.json

@@ -1,0 +1,13 @@
+[
+  {
+    "id": "promo-1",
+    "name": "Сезонные скидки",
+    "badgeText": "HOT DEAL",
+    "discountType": "percent",
+    "discountValue": 20,
+    "startDate": "2026-11-01",
+    "endDate": "2026-12-31",
+    "target": "all",
+    "active": true
+  }
+]
