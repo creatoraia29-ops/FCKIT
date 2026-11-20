@@ -1680,8 +1680,8 @@ async function handleRequest(req, res) {
 const server = http.createServer(handleRequest);
 
 if (require.main === module && !process.env.VERCEL) {
-  server.listen(PORT, "127.0.0.1", async () => {
-    console.log(`FCKIT: http://127.0.0.1:${PORT}`);
+  server.listen(PORT, "0.0.0.0", async () => {
+    console.log(`FCKIT server running on port ${PORT}`);
     await ensureDbInit();
     pollTelegramUpdates();
     pollCustomerTelegramUpdates();
