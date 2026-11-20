@@ -1679,7 +1679,7 @@ async function handleRequest(req, res) {
 
 const server = http.createServer(handleRequest);
 
-if (!process.env.VERCEL) {
+if (require.main === module && !process.env.VERCEL) {
   server.listen(PORT, "127.0.0.1", async () => {
     console.log(`FCKIT: http://127.0.0.1:${PORT}`);
     await ensureDbInit();

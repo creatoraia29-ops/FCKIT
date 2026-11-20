@@ -1,4 +1,9 @@
-const { createClient } = require("@libsql/client");
+let createClient;
+try {
+  createClient = require("@libsql/client/web").createClient;
+} catch {
+  createClient = require("@libsql/client").createClient;
+}
 const fs = require("fs");
 const path = require("path");
 
