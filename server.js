@@ -1116,8 +1116,11 @@ function readBody(req, limit = 5_000_000) {
 function safePath(urlPath) {
   const decoded = decodeURIComponent((urlPath || "/").split("?")[0]);
   const relative = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
-  const full = path.normalize(path.join(ROOT, relative));
+  let full = path.normalize(path.join(ROOT, relative));
   if (!full.startsWith(ROOT)) return null;
+  if (!path.extname(full) && fs.existsSync(full + ".html")) {
+    full += ".html";
+  }
   return full;
 }
 
