@@ -35,8 +35,13 @@ function renderSearch() {
     : `<p class="search-empty">Такой вещи нет</p>`;
 }
 
-searchInput.addEventListener("input", renderSearch);
+let searchDebounceTimer = null;
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(renderSearch, 120);
+});
 searchInput.form.addEventListener("submit", (event) => {
   event.preventDefault();
+  clearTimeout(searchDebounceTimer);
   renderSearch();
 });

@@ -1,6 +1,7 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const zlib = require("zlib");
 const {
   initTurso,
   dbGetProducts,
@@ -1077,16 +1078,32 @@ function setCorsHeaders(res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
 }
 
-function json(res, status, body) {
-  const data = JSON.stringify(body);
+function json(res, status, body, extraHeaders = {}, req = null) {
+  const data = Buffer.from(JSON.stringify(body), "utf8");
   setCorsHeaders(res);
-  res.writeHead(status, {
+  const headers = {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-  });
+    ...extraHeaders,
+  };
+
+  const acceptEncoding = (req && req.headers && req.headers["accept-encoding"]) || "";
+  if (data.length > 1024 && acceptEncoding.includes("gzip")) {
+    try {
+      const gzipped = zlib.gzipSync(data);
+      headers["Content-Encoding"] = "gzip";
+      headers["Content-Length"] = gzipped.length;
+      res.writeHead(status, headers);
+      res.end(gzipped);
+      return;
+    } catch (_) {}
+  }
+
+  headers["Content-Length"] = data.length;
+  res.writeHead(status, headers);
   res.end(data);
 }
 
@@ -1139,7 +1156,39 @@ function serveStatic(req, res) {
         res.end("Not found");
         return;
       }
-      res.writeHead(200, { "Content-Type": MIME[path.extname(target).toLowerCase()] || "application/octet-stream" });
+      const ext = path.extname(target).toLowerCase();
+      const contentType = MIME[ext] || "application/octet-stream";
+      let cacheControl = "public, max-age=300";
+
+      if ([".jpg", ".jpeg", ".png", ".webp", ".gif", ".ico"].includes(ext)) {
+        cacheControl = "public, max-age=604800, immutable";
+      } else if ([".css", ".js"].includes(ext)) {
+        cacheControl = "public, max-age=86400";
+      } else if (ext === ".svg") {
+        cacheControl = "public, max-age=604800";
+      }
+
+      const headers = {
+        "Content-Type": contentType,
+        "Cache-Control": cacheControl,
+      };
+
+      const acceptEncoding = (req && req.headers && req.headers["accept-encoding"]) || "";
+      const isCompressible = [".html", ".css", ".js", ".json", ".svg", ".txt"].includes(ext);
+
+      if (isCompressible && data.length > 1024 && acceptEncoding.includes("gzip")) {
+        try {
+          const gzipped = zlib.gzipSync(data);
+          headers["Content-Encoding"] = "gzip";
+          headers["Content-Length"] = gzipped.length;
+          res.writeHead(200, headers);
+          res.end(gzipped);
+          return;
+        } catch (_) {}
+      }
+
+      headers["Content-Length"] = data.length;
+      res.writeHead(200, headers);
       res.end(data);
     });
   });
@@ -1254,6 +1303,17 @@ async function ensureDbInit() {
 }
 
 async function handleRequest(req, res) {
+  try {
+    return await handleRequestInternal(req, res);
+  } catch (err) {
+    console.error("Top-level request error:", err);
+    if (!res.headersSent) {
+      json(res, 500, { error: "Внутренняя ошибка сервера" });
+    }
+  }
+}
+
+async function handleRequestInternal(req, res) {
   // CORS Preflight
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
@@ -1357,7 +1417,7 @@ async function handleRequest(req, res) {
 
   if (req.method === "GET" && req.url === "/api/products") {
     const list = await dbGetProducts();
-    json(res, 200, list);
+    json(res, 200, list, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" }, req);
     return;
   }
 
@@ -1378,7 +1438,7 @@ async function handleRequest(req, res) {
 
   if (req.method === "GET" && req.url === "/api/promotions") {
     const list = await dbGetPromotions();
-    json(res, 200, list);
+    json(res, 200, list, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" }, req);
     return;
   }
 
@@ -1694,5 +1754,13 @@ if (require.main === module && !process.env.VERCEL) {
     pollCustomerTelegramUpdates();
   });
 }
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Promise Rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
 
 module.exports = { handleRequest, server };

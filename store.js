@@ -165,7 +165,7 @@ function visualStyle(item) {
 
 function mediaMarkup(item, className) {
   if (item.image) {
-    return `<div class="${className} has-photo"><img src="${item.image}" alt="${item.title}"></div>`;
+    return `<div class="${className} has-photo"><img src="${item.image}" alt="${item.title}" loading="lazy" decoding="async"></div>`;
   }
   return `<div class="${className}" style="${visualStyle(item)}">FCKIT</div>`;
 }

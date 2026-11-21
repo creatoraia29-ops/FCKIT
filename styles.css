@@ -656,6 +656,8 @@ a.card {
   color: inherit;
   font: inherit;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px;
 }
 
 [data-theme="light"] .card {

@@ -88,6 +88,8 @@ async function initTurso() {
     try { await db.execute("ALTER TABLE orders ADD COLUMN paymentMethod TEXT DEFAULT 'card'"); } catch (_) {}
     try { await db.execute("ALTER TABLE orders ADD COLUMN paymentStatus TEXT DEFAULT 'pending'"); } catch (_) {}
     try { await db.execute("ALTER TABLE orders ADD COLUMN paymentDetails TEXT"); } catch (_) {}
+    try { await db.execute("CREATE INDEX IF NOT EXISTS idx_orders_created ON orders (createdAt DESC)"); } catch (_) {}
+    try { await db.execute("CREATE INDEX IF NOT EXISTS idx_orders_phone ON orders (phone)"); } catch (_) {}
     await db.execute(`
       CREATE TABLE IF NOT EXISTS promotions (
         id TEXT PRIMARY KEY,
@@ -152,13 +154,24 @@ async function initTurso() {
   }
 }
 
+let cachedProducts = null;
+let cachedProductsExpiresAt = 0;
+const PRODUCTS_CACHE_TTL_MS = 60 * 1000; // 60 секунд кэш в памяти
+
+let cachedPromotions = null;
+let cachedPromotionsExpiresAt = 0;
+const PROMOTIONS_CACHE_TTL_MS = 60 * 1000;
+
 async function dbGetProducts() {
+  if (cachedProducts && Date.now() < cachedProductsExpiresAt) {
+    return cachedProducts;
+  }
   const db = getClient();
   if (db) {
     try {
       const res = await db.execute("SELECT * FROM products ORDER BY id ASC");
       if (res.rows.length) {
-        return res.rows.map((row) => ({
+        const mapped = res.rows.map((row) => ({
           id: Number(row.id),
           title: row.title,
           department: row.department,
@@ -174,17 +187,28 @@ async function dbGetProducts() {
           tiers: row.tiers ? JSON.parse(row.tiers) : null,
           tagStyle: row.tagStyle ? JSON.parse(row.tagStyle) : null,
         }));
+        cachedProducts = mapped;
+        cachedProductsExpiresAt = Date.now() + PRODUCTS_CACHE_TTL_MS;
+        return mapped;
       }
     } catch (e) {
       console.error("Turso read error:", e.message);
     }
   }
   const pfile = path.join(ROOT, "products.json");
-  if (fs.existsSync(pfile)) return JSON.parse(fs.readFileSync(pfile, "utf8"));
+  if (fs.existsSync(pfile)) {
+    const fromJson = JSON.parse(fs.readFileSync(pfile, "utf8"));
+    cachedProducts = fromJson;
+    cachedProductsExpiresAt = Date.now() + PRODUCTS_CACHE_TTL_MS;
+    return fromJson;
+  }
   return [];
 }
 
 async function dbSaveProducts(list) {
+  cachedProducts = Array.isArray(list) ? list : [];
+  cachedProductsExpiresAt = Date.now() + PRODUCTS_CACHE_TTL_MS;
+
   try {
     const pfile = path.join(ROOT, "products.json");
     fs.writeFileSync(pfile, JSON.stringify(list, null, 2), "utf8");
@@ -195,28 +219,55 @@ async function dbSaveProducts(list) {
   const db = getClient();
   if (db) {
     try {
-      await db.execute("DELETE FROM products");
-      for (const item of list) {
-        await db.execute({
-          sql: `INSERT OR REPLACE INTO products (id, title, department, section, price, sale, image, shade, text, hit, installmentMonths, weightGram, tiers, tagStyle)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [
-            item.id,
-            item.title,
-            item.department,
-            item.section,
-            item.price,
-            item.sale || null,
-            item.image || null,
-            item.shade || null,
-            item.text || null,
-            item.hit ? 1 : 0,
-            item.installmentMonths || 4,
-            item.weightGram || null,
-            item.tiers ? JSON.stringify(item.tiers) : null,
-            item.tagStyle ? JSON.stringify(item.tagStyle) : null,
-          ],
-        });
+      if (typeof db.batch === "function") {
+        const batchStmts = [
+          { sql: "DELETE FROM products" },
+          ...list.map((item) => ({
+            sql: `INSERT OR REPLACE INTO products (id, title, department, section, price, sale, image, shade, text, hit, installmentMonths, weightGram, tiers, tagStyle)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+              item.id,
+              item.title,
+              item.department,
+              item.section,
+              item.price,
+              item.sale || null,
+              item.image || null,
+              item.shade || null,
+              item.text || null,
+              item.hit ? 1 : 0,
+              item.installmentMonths || 4,
+              item.weightGram || null,
+              item.tiers ? JSON.stringify(item.tiers) : null,
+              item.tagStyle ? JSON.stringify(item.tagStyle) : null,
+            ],
+          })),
+        ];
+        await db.batch(batchStmts, "write");
+      } else {
+        await db.execute("DELETE FROM products");
+        for (const item of list) {
+          await db.execute({
+            sql: `INSERT OR REPLACE INTO products (id, title, department, section, price, sale, image, shade, text, hit, installmentMonths, weightGram, tiers, tagStyle)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+              item.id,
+              item.title,
+              item.department,
+              item.section,
+              item.price,
+              item.sale || null,
+              item.image || null,
+              item.shade || null,
+              item.text || null,
+              item.hit ? 1 : 0,
+              item.installmentMonths || 4,
+              item.weightGram || null,
+              item.tiers ? JSON.stringify(item.tiers) : null,
+              item.tagStyle ? JSON.stringify(item.tagStyle) : null,
+            ],
+          });
+        }
       }
     } catch (e) {
       console.error("Turso write error:", e.message);
@@ -253,12 +304,15 @@ async function dbSaveOrder(order) {
 }
 
 async function dbGetPromotions() {
+  if (cachedPromotions && Date.now() < cachedPromotionsExpiresAt) {
+    return cachedPromotions;
+  }
   const db = getClient();
   if (db) {
     try {
       const res = await db.execute("SELECT * FROM promotions");
       if (res.rows.length) {
-        return res.rows.map((r) => ({
+        const mapped = res.rows.map((r) => ({
           id: r.id,
           name: r.name,
           badgeText: r.badgeText,
@@ -269,17 +323,28 @@ async function dbGetPromotions() {
           target: r.target,
           active: Boolean(r.active),
         }));
+        cachedPromotions = mapped;
+        cachedPromotionsExpiresAt = Date.now() + PROMOTIONS_CACHE_TTL_MS;
+        return mapped;
       }
     } catch (e) {
       console.error("Turso promo read error:", e.message);
     }
   }
   const file = path.join(ROOT, "promotions.json");
-  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
+  if (fs.existsSync(file)) {
+    const fromJson = JSON.parse(fs.readFileSync(file, "utf8"));
+    cachedPromotions = fromJson;
+    cachedPromotionsExpiresAt = Date.now() + PROMOTIONS_CACHE_TTL_MS;
+    return fromJson;
+  }
   return [];
 }
 
 async function dbSavePromotions(list) {
+  cachedPromotions = Array.isArray(list) ? list : [];
+  cachedPromotionsExpiresAt = Date.now() + PROMOTIONS_CACHE_TTL_MS;
+
   try {
     const file = path.join(ROOT, "promotions.json");
     fs.writeFileSync(file, JSON.stringify(list, null, 2), "utf8");
@@ -290,23 +355,45 @@ async function dbSavePromotions(list) {
   const db = getClient();
   if (db) {
     try {
-      await db.execute("DELETE FROM promotions");
-      for (const p of list) {
-        await db.execute({
-          sql: `INSERT INTO promotions (id, name, badgeText, discountType, discountValue, startDate, endDate, target, active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [
-            p.id,
-            p.name,
-            p.badgeText,
-            p.discountType || "percent",
-            p.discountValue || 0,
-            p.startDate,
-            p.endDate,
-            p.target || "all",
-            p.active ? 1 : 0,
-          ],
-        });
+      if (typeof db.batch === "function") {
+        const batchStmts = [
+          { sql: "DELETE FROM promotions" },
+          ...list.map((p) => ({
+            sql: `INSERT INTO promotions (id, name, badgeText, discountType, discountValue, startDate, endDate, target, active)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+              p.id,
+              p.name,
+              p.badgeText,
+              p.discountType || "percent",
+              p.discountValue || 0,
+              p.startDate,
+              p.endDate,
+              p.target || "all",
+              p.active ? 1 : 0,
+            ],
+          })),
+        ];
+        await db.batch(batchStmts, "write");
+      } else {
+        await db.execute("DELETE FROM promotions");
+        for (const p of list) {
+          await db.execute({
+            sql: `INSERT INTO promotions (id, name, badgeText, discountType, discountValue, startDate, endDate, target, active)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+              p.id,
+              p.name,
+              p.badgeText,
+              p.discountType || "percent",
+              p.discountValue || 0,
+              p.startDate,
+              p.endDate,
+              p.target || "all",
+              p.active ? 1 : 0,
+            ],
+          });
+        }
       }
     } catch (e) {
       console.error("Turso promo write error:", e.message);
