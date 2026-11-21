@@ -331,6 +331,98 @@ function detectUzbekCard(rawNumber) {
   return { brand: null, name: "", valid: false, needsCvv: false, error: null };
 }
 
+// ==========================================
+// SMS-ШЛЮЗ УЗБЕКИСТАНА (ESKIZ.UZ)
+// ==========================================
+let eskizToken = null;
+let eskizTokenExpires = 0;
+
+async function getEskizToken() {
+  const email = process.env.ESKIZ_EMAIL;
+  const password = process.env.ESKIZ_PASSWORD;
+  if (!email || !password) return null;
+  if (eskizToken && Date.now() < eskizTokenExpires) return eskizToken;
+
+  try {
+    const res = await fetch("https://notify.eskiz.uz/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (data?.data?.token) {
+      eskizToken = data.data.token;
+      eskizTokenExpires = Date.now() + 25 * 24 * 3600 * 1000;
+      return eskizToken;
+    }
+    console.error("Eskiz auth fail:", data);
+  } catch (err) {
+    console.error("Eskiz auth error:", err.message);
+  }
+  return null;
+}
+
+async function sendUzbekSms(rawPhone, messageText) {
+  const cleaned = String(rawPhone || "").replace(/\D/g, "");
+  let phone = cleaned;
+  if (phone.length === 9) phone = "998" + phone;
+  if (!phone.startsWith("998") || phone.length !== 12) {
+    console.warn("SMS not sent: invalid UZ phone format", rawPhone);
+    return false;
+  }
+
+  const token = await getEskizToken();
+  if (!token) {
+    console.log(`ℹ️ [SMS Gateway] Для отправки реальных SMS укажите ESKIZ_EMAIL и ESKIZ_PASSWORD в Render. Код для +${phone}: "${messageText}"`);
+    return false;
+  }
+
+  try {
+    const from = process.env.ESKIZ_FROM || "4546";
+    const res = await fetch("https://notify.eskiz.uz/api/message/sms/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        mobile_phone: phone,
+        message: messageText,
+        from: from,
+      }),
+    });
+    const result = await res.json();
+    if (result && (result.status === "waiting" || result.status === "success" || result.message === "Waiting for SMS provider")) {
+      console.log(`✅ Реальное SMS успешно отправлено на +${phone}:`, result);
+      return true;
+    }
+    console.warn("Eskiz response:", result);
+    return false;
+  } catch (err) {
+    console.error("Ошибка отправки SMS через Eskiz:", err.message);
+    return false;
+  }
+}
+
+// ==========================================
+// ГЕНЕРАЦИЯ ССЫЛОК НА ОПЛАТУ PAYME И CLICK
+// ==========================================
+function getPaymeCheckoutUrl(orderId, amountSum) {
+  const merchantId = process.env.PAYME_MERCHANT_ID;
+  if (!merchantId) return null;
+  const tiyin = Math.round(Number(amountSum || 0) * 100);
+  const param = `m=${merchantId};ac.order_id=${orderId};a=${tiyin}`;
+  const base64 = Buffer.from(param).toString("base64");
+  return `https://checkout.paycom.uz/${base64}`;
+}
+
+function getClickCheckoutUrl(orderId, amountSum) {
+  const merchantId = process.env.CLICK_MERCHANT_ID;
+  const serviceId = process.env.CLICK_SERVICE_ID;
+  if (!merchantId || !serviceId) return null;
+  return `https://my.click.uz/services/pay?service_id=${serviceId}&merchant_id=${merchantId}&amount=${amountSum}&transaction_param=${orderId}`;
+}
+
 async function sendTelegramPhoto(chatId, photoBuffer, filename, captionHtml, replyMarkup = null) {
   if (!TELEGRAM_BOT_TOKEN) return null;
   try {
@@ -1562,7 +1654,18 @@ async function handleRequestInternal(req, res) {
         createdAt: Date.now(),
       });
 
-      console.log(`💳 [Платёжный шлюз UZ] Создана транзакция ${txId} (${detect.name} *${cardClean.slice(-4)}). Тестовый SMS-код: ${otpCode}`);
+      console.log(`💳 [Платёжный шлюз UZ] Создана транзакция ${txId} (${detect.name} *${cardClean.slice(-4)}). Код подтверждения: ${otpCode}`);
+
+      // Отправка реального SMS через Eskiz.uz
+      let smsSent = false;
+      try {
+        smsSent = await sendUzbekSms(
+          order.phone,
+          `FCKIT: Kod podtverjdeniya oplaty zakaza ${order.id}: ${otpCode}`
+        );
+      } catch (smsErr) {
+        console.error("SMS send fail:", smsErr.message);
+      }
 
       json(res, 200, {
         ok: true,
@@ -1572,8 +1675,11 @@ async function handleRequestInternal(req, res) {
         cardName: detect.name,
         last4: cardClean.slice(-4),
         phoneMask,
-        demoOtp: otpCode,
-        message: `Код подтверждения отправлен на номер ${phoneMask}`,
+        demoOtp: smsSent ? null : otpCode,
+        smsSent,
+        message: smsSent
+          ? `Код подтверждения отправлен по SMS на номер ${phoneMask}`
+          : `Код подтверждения отправлен на номер ${phoneMask}`,
       });
     } catch (err) {
       console.error("card-init error:", err);
