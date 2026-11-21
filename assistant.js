@@ -143,7 +143,11 @@
     setBusy(true);
 
     try {
-      const response = await fetch("/api/assistant", {
+      const endpoint = typeof getApiUrl === "function"
+        ? getApiUrl("/api/assistant")
+        : ((window.FCKIT_API_URL || "").replace(/\/+$/, "") + "/api/assistant");
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
