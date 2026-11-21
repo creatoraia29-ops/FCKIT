@@ -83,6 +83,33 @@ function orderItemMarkup(item) {
 function orderMarkup(order) {
   const done = order.status === "done";
   const itemsLabel = `${order.items.length} ${plural(order.items.length, "вещь", "вещи", "вещей")}`;
+  
+  let paymentBadge = "";
+  if (order.paymentStatus === "paid") {
+    paymentBadge = `<span style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600;">Оплачен картой</span>`;
+  } else if (order.paymentStatus === "awaiting_verification") {
+    paymentBadge = `<span style="background: rgba(241, 196, 15, 0.15); color: #f1c40f; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 600;">Чек на проверке</span>`;
+  } else {
+    paymentBadge = `<span style="background: rgba(255, 255, 255, 0.08); color: var(--muted); padding: 2px 8px; border-radius: 4px; font-size: 11.5px;">Ожидает оплаты</span>`;
+  }
+
+  let receiptLink = "";
+  const pDetails = order.paymentDetails || {};
+  if (pDetails.receiptUrl) {
+    const fullUrl = pDetails.receiptUrl.startsWith("http") ? pDetails.receiptUrl : (window.FCKIT_API_URL || "") + pDetails.receiptUrl;
+    receiptLink = `
+      <div style="margin-top: 8px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 6px;">
+        <span style="font-size: 16px;">🧾</span>
+        <a href="${fullUrl}" target="_blank" rel="noopener" style="color: #63b3ed; font-size: 13px; text-decoration: underline;">
+          Посмотреть прикреплённый чек
+        </a>
+        ${pDetails.transactionId ? `<span style="color: var(--muted); font-size: 12px;">(TX: ${escapeHtml(pDetails.transactionId)})</span>` : ""}
+      </div>
+    `;
+  } else if (pDetails.transactionId) {
+    receiptLink = `<div style="margin-top: 6px; font-size: 12.5px; color: var(--muted);">Номер транзакции: <strong>${escapeHtml(pDetails.transactionId)}</strong></div>`;
+  }
+
   return `
     <article class="order-card${done ? " is-done" : ""}">
       <header class="order-card__head">
@@ -92,13 +119,17 @@ function orderMarkup(order) {
             <time datetime="${escapeHtml(order.createdAt)}">${escapeHtml(formatDateTime(order.createdAt))}</time>
           </p>
         </div>
-        <span class="order-status">${done ? "Выполнен" : "Новый"}</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          ${paymentBadge}
+          <span class="order-status">${done ? "Выполнен" : "Новый"}</span>
+        </div>
       </header>
       <p class="order-meta">
         <strong>${escapeHtml(order.name)}</strong> · <a href="tel:${escapeHtml(order.phone)}">${escapeHtml(order.phone)}</a> · ${itemsLabel}
         ${order.note ? ` · <em>${escapeHtml(order.note)}</em>` : ""}
       </p>
-      <div class="cart-list">
+      ${receiptLink}
+      <div class="cart-list" style="margin-top: 10px;">
         ${order.items.map(orderItemMarkup).join("")}
       </div>
       <footer class="order-card__foot">
@@ -181,10 +212,90 @@ const editSection = document.getElementById("editSection");
 const editPrice = document.getElementById("editPrice");
 const editSale = document.getElementById("editSale");
 const editImage = document.getElementById("editImage");
+const editImageFile = document.getElementById("editImageFile");
+const adminPhotoPrompt = document.getElementById("adminPhotoPrompt");
+const adminPhotoPreviewBox = document.getElementById("adminPhotoPreviewBox");
+const adminPhotoPreviewImg = document.getElementById("adminPhotoPreviewImg");
+const adminPhotoPreviewName = document.getElementById("adminPhotoPreviewName");
+const btnRemoveAdminPhoto = document.getElementById("btnRemoveAdminPhoto");
 const editShade = document.getElementById("editShade");
 const editText = document.getElementById("editText");
 const editHit = document.getElementById("editHit");
 const btnModalCancel = document.getElementById("btnModalCancel");
+
+function compressProductImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const MAX = 900;
+        let w = img.width;
+        let h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) {
+            h = Math.round((h * MAX) / w);
+            w = MAX;
+          } else {
+            w = Math.round((w * MAX) / h);
+            h = MAX;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/webp", 0.85));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateAdminPhotoPreview(src, name = "Фото товара") {
+  if (src) {
+    if (adminPhotoPrompt) adminPhotoPrompt.style.display = "none";
+    if (adminPhotoPreviewBox) adminPhotoPreviewBox.style.display = "flex";
+    if (adminPhotoPreviewImg) adminPhotoPreviewImg.src = src;
+    if (adminPhotoPreviewName) adminPhotoPreviewName.textContent = name;
+  } else {
+    if (adminPhotoPrompt) adminPhotoPrompt.style.display = "flex";
+    if (adminPhotoPreviewBox) adminPhotoPreviewBox.style.display = "none";
+    if (adminPhotoPreviewImg) adminPhotoPreviewImg.src = "";
+    if (editImage) editImage.value = "";
+    if (editImageFile) editImageFile.value = "";
+  }
+}
+
+editImageFile?.addEventListener("change", async () => {
+  const file = editImageFile.files?.[0];
+  if (!file) return;
+  try {
+    const compressed = await compressProductImage(file);
+    editImage.value = compressed;
+    updateAdminPhotoPreview(compressed, file.name);
+  } catch (err) {
+    alert("Не удалось загрузить фото: " + err.message);
+  }
+});
+
+btnRemoveAdminPhoto?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  updateAdminPhotoPreview("");
+});
+
+editImage?.addEventListener("input", () => {
+  const val = editImage.value.trim();
+  if (val) {
+    updateAdminPhotoPreview(val, "Указанная ссылка");
+  } else {
+    updateAdminPhotoPreview("");
+  }
+});
 
 function renderProductsTab() {
   productsCountEl.textContent = PRODUCTS.length;
@@ -249,6 +360,7 @@ btnNewProduct.addEventListener("click", () => {
   editShade.value = "#1A1A1A";
   editText.value = "";
   editHit.checked = false;
+  updateAdminPhotoPreview("");
   productModal.showModal();
 });
 
@@ -324,6 +436,7 @@ productsTableBody.addEventListener("click", (e) => {
     editShade.value = item.shade || "#1A1A1A";
     editText.value = item.text || "";
     editHit.checked = !!item.hit;
+    updateAdminPhotoPreview(item.image || "", item.title);
     productModal.showModal();
     return;
   }

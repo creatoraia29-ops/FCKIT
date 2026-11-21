@@ -1515,7 +1515,7 @@ async function handleRequestInternal(req, res) {
 
   if (req.method === "POST" && req.url === "/api/products") {
     try {
-      const list = JSON.parse((await readBody(req, 2_000_000)) || "[]");
+      const list = JSON.parse((await readBody(req, 25_000_000)) || "[]");
       if (!Array.isArray(list)) {
         json(res, 400, { error: "Ожидался массив товаров." });
         return;
@@ -1786,9 +1786,15 @@ async function handleRequestInternal(req, res) {
           const ext = matches[1].replace("jpeg", "jpg");
           receiptBuffer = Buffer.from(matches[2], "base64");
           const filename = `receipt-${order.id}-${Date.now()}.${ext}`;
-          const diskPath = path.join(ROOT, "uploads", "receipts", filename);
-          fs.writeFileSync(diskPath, receiptBuffer);
-          receiptPath = `/uploads/receipts/${filename}`;
+          try {
+            const dir = path.join(ROOT, "uploads", "receipts");
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            const diskPath = path.join(dir, filename);
+            fs.writeFileSync(diskPath, receiptBuffer);
+            receiptPath = `/uploads/receipts/${filename}`;
+          } catch (fsErr) {
+            console.error("Receipt disk save error (proceeding with memory buffer):", fsErr.message);
+          }
         }
       }
 

@@ -536,6 +536,87 @@ function showOtpModal({ order, txId, brand, last4, phoneMask, demoOtp }) {
   });
 }
 
+// Сжатие изображений на стороне клиента через Canvas
+function compressImageClient(file, maxDimension = 1200, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDimension || h > maxDimension) {
+          if (w > h) {
+            h = Math.round((h * maxDimension) / w);
+            w = maxDimension;
+          } else {
+            w = Math.round((w * maxDimension) / h);
+            h = maxDimension;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function attachReceiptWidgetMarkup(order) {
+  return `
+    <div class="receipt-attach-box" style="margin-top: 18px; padding: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 8px; text-align: left;">
+      <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">📎 Чек или квитанция об оплате</div>
+      <p style="margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.4;">
+        Если вы перевели оплату через приложение банка (Click, Payme, Uzum), прикрепите фото или скриншот чека для ускорения отправки:
+      </p>
+      <div id="postReceiptDropzone" style="position: relative; min-height: 48px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line); border-radius: 6px; padding: 10px; cursor: pointer; text-align: center; transition: border-color 0.2s;">
+        <input type="file" id="postReceiptInput" accept="image/*" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 5;" />
+        <span id="postReceiptStatus" style="font-size: 13px;">📁 Нажмите, чтобы прикрепить фото чека из галереи</span>
+      </div>
+    </div>`;
+}
+
+function bindPostReceiptWidget(order) {
+  const input = document.getElementById("postReceiptInput");
+  const status = document.getElementById("postReceiptStatus");
+  if (!input || !status) return;
+
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    status.textContent = "⏳ Сжатие и отправка чека...";
+    try {
+      const b64 = await compressImageClient(file);
+      const res = await fetch(apiEndpoint("/api/payment/confirm-transfer"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order.id,
+          receiptImage: b64,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        status.innerHTML = "✅ <strong>Чек успешно получен и отправлен менеджеру!</strong>";
+        status.style.color = "#2ecc71";
+      } else {
+        status.textContent = "❌ Ошибка: " + (data.error || "не удалось сохранить чек");
+        status.style.color = "#ff6b6b";
+      }
+    } catch (err) {
+      status.textContent = "❌ Ошибка отправки: " + err.message;
+      status.style.color = "#ff6b6b";
+    }
+  });
+}
+
 // Экран успешной оплаты картой
 function renderCardSuccessScreen(order, brand, last4) {
   cartBoard.innerHTML = `
@@ -550,6 +631,7 @@ function renderCardSuccessScreen(order, brand, last4) {
       <p style="color: var(--muted); font-size: 13.5px; line-height: 1.45;">
         Электронный чек сформирован. Менеджер уже передал ваш заказ на склад для прямой доставки из Китая за 7–10 дней.
       </p>
+      ${attachReceiptWidgetMarkup(order)}
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 22px;">
         <a class="btn btn-primary" href="https://t.me/FCKIT_USERBot?start=${encodeURIComponent(order.id)}" target="_blank" rel="noopener">
           🤖 Отслеживать статус в Telegram-боте
@@ -557,6 +639,7 @@ function renderCardSuccessScreen(order, brand, last4) {
         <a class="btn" href="catalog.html">Вернуться в каталог</a>
       </div>
     </div>`;
+  bindPostReceiptWidget(order);
 }
 
 // Экран перевода на карту Visa Uzum (с защищённой подгрузкой реквизитов из .env)
@@ -616,14 +699,25 @@ async function renderTransferScreen(order) {
             <input type="text" id="transferTxInput" placeholder="напр. TX-9841284 или 12345678" />
           </label>
 
-          <label class="checkout__field">
-            <span>Скриншот чека (рекомендуется)</span>
-            <div class="receipt-dropzone" id="receiptDropzone">
-              <span id="receiptDropText">📁 Нажмите для выбора фото чека</span>
-              <input type="file" id="receiptFileInput" accept="image/*" style="display: none;" />
-              <img id="receiptPreview" class="receipt-preview-img" style="display: none;" alt="Чек" />
+          <div class="checkout__field">
+            <span>Скриншот или фото чека (рекомендуется)</span>
+            <div class="receipt-dropzone" id="receiptDropzone" style="position: relative; cursor: pointer; min-height: 85px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--line); border-radius: 8px; padding: 14px; background: rgba(255,255,255,0.02); text-align: center; transition: border-color 0.2s;">
+              <input type="file" id="receiptFileInput" accept="image/*" style="position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 5;" />
+              <div id="receiptPrompt" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <span style="font-size: 26px;">📁</span>
+                <span id="receiptDropText" style="font-weight: 500; font-size: 14px;">Нажмите для выбора фото чека из галереи</span>
+                <span style="font-size: 11.5px; color: var(--muted);">Поддерживаются любые фото чека с телефона или ПК (или Ctrl+V)</span>
+              </div>
+              <div id="receiptPreviewBox" style="display: none; align-items: center; gap: 12px; width: 100%;">
+                <img id="receiptPreview" class="receipt-preview-img" style="max-width: 65px; max-height: 65px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line);" alt="Чек" />
+                <div style="text-align: left; flex: 1; overflow: hidden;">
+                  <span id="receiptFileName" style="font-size: 13px; font-weight: 500; display: block; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">receipt.jpg</span>
+                  <span style="font-size: 11.5px; color: #2ecc71;">Чек прикреплен</span>
+                </div>
+                <button type="button" class="btn" id="btnRemoveReceipt" style="position: relative; z-index: 10; padding: 4px 10px; font-size: 12px;">Удалить</button>
+              </div>
             </div>
-          </label>
+          </div>
 
           <button type="submit" class="btn btn-primary" id="btnSubmitTransfer" style="min-height: 48px; font-size: 16px;">
             ✅ Я оплатил
@@ -648,25 +742,51 @@ async function renderTransferScreen(order) {
     });
 
     // Загрузка скриншота чека
-    const dropzone = document.getElementById("receiptDropzone");
     const fileInput = document.getElementById("receiptFileInput");
     const preview = document.getElementById("receiptPreview");
-    const dropText = document.getElementById("receiptDropText");
+    const promptBox = document.getElementById("receiptPrompt");
+    const previewBox = document.getElementById("receiptPreviewBox");
+    const fileNameSpan = document.getElementById("receiptFileName");
+    const btnRemoveReceipt = document.getElementById("btnRemoveReceipt");
     let receiptBase64 = null;
 
-    dropzone?.addEventListener("click", () => fileInput?.click());
+    const setReceiptFile = async (file) => {
+      if (!file) return;
+      try {
+        receiptBase64 = await compressImageClient(file);
+        preview.src = receiptBase64;
+        fileNameSpan.textContent = file.name || "Чек оплаты.jpg";
+        promptBox.style.display = "none";
+        previewBox.style.display = "flex";
+      } catch (err) {
+        alert("Не удалось прочитать фото чека: " + err.message);
+      }
+    };
 
     fileInput?.addEventListener("change", () => {
       const file = fileInput.files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          receiptBase64 = e.target.result;
-          preview.src = receiptBase64;
-          preview.style.display = "block";
-          dropText.textContent = `Выбран файл: ${file.name}`;
-        };
-        reader.readAsDataURL(file);
+      if (file) setReceiptFile(file);
+    });
+
+    btnRemoveReceipt?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      receiptBase64 = null;
+      if (fileInput) fileInput.value = "";
+      preview.src = "";
+      previewBox.style.display = "none";
+      promptBox.style.display = "flex";
+    });
+
+    // Вставка скриншота из буфера обмена (Ctrl+V)
+    window.addEventListener("paste", (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) setReceiptFile(file);
+          break;
+        }
       }
     });
 
@@ -724,6 +844,7 @@ function renderTransferSuccessScreen(order) {
       <p style="color: var(--muted); font-size: 13.5px; line-height: 1.45;">
         Менеджер FCKIT сверит перевод в течение 5–10 минут. Вы получите уведомление об успешном зачислении в Telegram-боте, и посылка будет сразу отправлена в сборку.
       </p>
+      ${attachReceiptWidgetMarkup(order)}
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 22px;">
         <a class="btn btn-primary" href="https://t.me/FCKIT_USERBot?start=${encodeURIComponent(order.id)}" target="_blank" rel="noopener">
           🤖 Отслеживать статус в Telegram-боте
@@ -731,6 +852,7 @@ function renderTransferSuccessScreen(order) {
         <a class="btn" href="catalog.html">Вернуться в каталог</a>
       </div>
     </div>`;
+  bindPostReceiptWidget(order);
 }
 
 function bindCheckout() {
