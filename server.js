@@ -2,6 +2,7 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const zlib = require("zlib");
+const crypto = require("crypto");
 const {
   initTurso,
   dbGetProducts,
@@ -1164,21 +1165,217 @@ ${catalogText()}
 }`;
 }
 
-function setCorsHeaders(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+// ==========================================
+// 🛡️ SECURITY MODULE: CORS, HEADERS, RATE LIMITING & AUTH
+// ==========================================
+const JWT_SECRET = process.env.ADMIN_JWT_SECRET || (process.env.TELEGRAM_BOT_TOKEN ? crypto.createHash("sha256").update(process.env.TELEGRAM_BOT_TOKEN).digest("hex") : "fckit-jwt-secret-2026");
+
+const TRUSTED_ORIGINS = new Set([
+  "https://creatoraia29-ops.github.io",
+  "https://fckit.onrender.com",
+  "http://localhost:5500",
+  "http://127.0.0.1:5500",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+]);
+
+if (process.env.ALLOWED_ORIGINS) {
+  process.env.ALLOWED_ORIGINS.split(",").forEach((o) => {
+    const trimmed = o.trim();
+    if (trimmed) TRUSTED_ORIGINS.add(trimmed);
+  });
+}
+
+function getCorsOrigin(req) {
+  const origin = (req?.headers?.origin || "").trim();
+  if (!origin) return null;
+  if (TRUSTED_ORIGINS.has(origin)) return origin;
+  try {
+    const parsed = new URL(origin);
+    if (parsed.hostname === "creatoraia29-ops.github.io" || parsed.hostname === "fckit.onrender.com") {
+      return origin;
+    }
+  } catch (_) {}
+  return null;
+}
+
+function getSecurityHeaders() {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "X-XSS-Protection": "1; mode=block",
+    "Content-Security-Policy": "default-src 'self' https://creatoraia29-ops.github.io https://fckit.onrender.com; script-src 'self' 'unsafe-inline' https://creatoraia29-ops.github.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fckit.onrender.com https://api.telegram.org; frame-ancestors 'self';",
+  };
+}
+
+function setCorsHeaders(res, req = null) {
+  const matched = req ? getCorsOrigin(req) : null;
+  if (matched) {
+    res.setHeader("Access-Control-Allow-Origin", matched);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else if (!req) {
+    res.setHeader("Access-Control-Allow-Origin", "https://creatoraia29-ops.github.io");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Admin-Password");
+}
+
+// In-Memory Rate Limiter (защита от DDoS / брутфорса)
+const rateLimitStores = new Map();
+
+function checkRateLimit(ip, bucket, maxRequests, windowMs) {
+  const now = Date.now();
+  const key = `${bucket}:${ip}`;
+  let record = rateLimitStores.get(key);
+  if (!record || now > record.resetAt) {
+    record = { count: 1, resetAt: now + windowMs };
+    rateLimitStores.set(key, record);
+    return { allowed: true, remaining: maxRequests - 1 };
+  }
+  record.count += 1;
+  if (record.count > maxRequests) {
+    return { allowed: false, remaining: 0, retryAfterSec: Math.ceil((record.resetAt - now) / 1000) };
+  }
+  return { allowed: true, remaining: maxRequests - record.count };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitStores.entries()) {
+    if (now > record.resetAt) rateLimitStores.delete(key);
+  }
+}, 5 * 60 * 1000);
+
+function getClientIp(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  return req.socket?.remoteAddress || "127.0.0.1";
+}
+
+function safeCompareStrings(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function signAdminToken() {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ role: "admin", iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 86400 * 7 })).toString("base64url");
+  const signature = crypto.createHmac("sha256", JWT_SECRET).update(`${header}.${payload}`).digest("base64url");
+  return `${header}.${payload}.${signature}`;
+}
+
+function verifyAdminToken(token) {
+  if (!token || typeof token !== "string") return false;
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+  const [header, payload, signature] = parts;
+  try {
+    const expectedSig = crypto.createHmac("sha256", JWT_SECRET).update(`${header}.${payload}`).digest("base64url");
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) return false;
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (data.exp && Math.floor(Date.now() / 1000) > data.exp) return false;
+    return data.role === "admin";
+  } catch (_) {
+    return false;
+  }
+}
+
+function isAuthorizedAdminRequest(req) {
+  const auth = req.headers.authorization || "";
+  if (auth.startsWith("Bearer ")) {
+    const token = auth.slice(7).trim();
+    if (verifyAdminToken(token)) return true;
+    if (safeCompareStrings(token, getTelegramBotPassword())) return true;
+  }
+  const passHeader = req.headers["x-admin-password"];
+  if (passHeader && safeCompareStrings(passHeader, getTelegramBotPassword())) {
+    return true;
+  }
+  return false;
+}
+
+function sanitizeString(str, maxLength = 200) {
+  if (!str || typeof str !== "string") return "";
+  return str
+    .replace(/<[^>]*>/g, "")
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+async function recalculateOrderTotal(items) {
+  if (!Array.isArray(items) || items.length === 0) return { valid: false, total: 0, items: [] };
+  const products = await dbGetProducts();
+  const promotions = await dbGetPromotions();
+  const now = new Date();
+
+  const activePromo = promotions.find((p) => {
+    if (!p.active) return false;
+    if (p.startDate && new Date(p.startDate) > now) return false;
+    if (p.endDate && new Date(p.endDate) < now) return false;
+    return true;
+  });
+
+  const verifiedItems = [];
+  let calculatedTotal = 0;
+
+  for (const clientItem of items) {
+    const prodId = Number(clientItem.id);
+    const qty = Math.max(1, Math.min(99, Math.floor(Number(clientItem.qty) || 1)));
+    const product = products.find((p) => p.id === prodId);
+    if (!product) continue;
+
+    let basePrice = Number(product.sale || product.price);
+
+    if (activePromo) {
+      if (activePromo.target === "all" || activePromo.target === product.department || activePromo.target === product.section) {
+        if (activePromo.discountType === "percent") {
+          basePrice = Math.round(basePrice * (1 - activePromo.discountValue / 100));
+        } else if (activePromo.discountType === "fixed") {
+          basePrice = Math.max(0, basePrice - activePromo.discountValue);
+        }
+      }
+    }
+
+    const itemTotal = basePrice * qty;
+    calculatedTotal += itemTotal;
+
+    verifiedItems.push({
+      id: product.id,
+      title: product.title,
+      price: basePrice,
+      originalPrice: product.price,
+      sale: product.sale,
+      department: product.department,
+      section: product.section,
+      image: product.image,
+      shade: product.shade,
+      qty,
+    });
+  }
+
+  return {
+    valid: verifiedItems.length > 0,
+    total: calculatedTotal,
+    items: verifiedItems,
+  };
 }
 
 function json(res, status, body, extraHeaders = {}, req = null) {
   const data = Buffer.from(JSON.stringify(body), "utf8");
-  setCorsHeaders(res);
+  setCorsHeaders(res, req);
   const headers = {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+    ...getSecurityHeaders(),
     ...extraHeaders,
   };
 
@@ -1260,9 +1457,11 @@ function serveStatic(req, res) {
         cacheControl = "public, max-age=604800";
       }
 
+      setCorsHeaders(res, req);
       const headers = {
         "Content-Type": contentType,
         "Cache-Control": cacheControl,
+        ...getSecurityHeaders(),
       };
 
       const acceptEncoding = (req && req.headers && req.headers["accept-encoding"]) || "";
@@ -1408,11 +1607,8 @@ async function handleRequest(req, res) {
 async function handleRequestInternal(req, res) {
   // CORS Preflight
   if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-    });
+    setCorsHeaders(res, req);
+    res.writeHead(204);
     res.end();
     return;
   }
@@ -1427,9 +1623,43 @@ async function handleRequestInternal(req, res) {
         service: "FCKIT E-Commerce API",
         status: "online",
         time: new Date().toISOString(),
-      });
+      }, {}, req);
       return;
     }
+  }
+
+  // 0.1 Авторизация администратора (POST /api/admin/login)
+  if (req.method === "POST" && req.url === "/api/admin/login") {
+    const ip = getClientIp(req);
+    const rate = checkRateLimit(ip, "admin_login", 5, 15 * 60 * 1000);
+    if (!rate.allowed) {
+      json(res, 429, { error: `Превышен лимит попыток входа. Попробуйте через ${rate.retryAfterSec} сек.` }, {}, req);
+      return;
+    }
+    try {
+      const body = JSON.parse((await readBody(req, 10_000)) || "{}");
+      const password = String(body.password || "").trim();
+      if (safeCompareStrings(password, getTelegramBotPassword())) {
+        const token = signAdminToken();
+        json(res, 200, { ok: true, token, expiresIn: 86400 * 7 }, {}, req);
+      } else {
+        json(res, 401, { error: "Неверный пароль администратора." }, {}, req);
+      }
+    } catch (_) {
+      json(res, 400, { error: "Некорректный запрос." }, {}, req);
+    }
+    return;
+  }
+
+  // 0.2 Список заказов для админки (GET /api/orders) с защитой авторизацией
+  if (req.method === "GET" && req.url?.startsWith("/api/orders")) {
+    if (!isAuthorizedAdminRequest(req)) {
+      json(res, 401, { error: "Доступ запрещён. Требуется авторизация администратора." }, {}, req);
+      return;
+    }
+    const orders = await dbGetOrders(100);
+    json(res, 200, orders, {}, req);
+    return;
   }
 
   // 1. Telegram Webhook: Администратор
@@ -1440,10 +1670,10 @@ async function handleRequestInternal(req, res) {
       if (update && update.update_id) {
         await handleTelegramUpdate(update);
       }
-      json(res, 200, { ok: true });
+      json(res, 200, { ok: true }, {}, req);
     } catch (err) {
       console.error("Webhook admin error:", err.message);
-      json(res, 200, { ok: false, error: err.message });
+      json(res, 200, { ok: false, error: err.message }, {}, req);
     }
     return;
   }
@@ -1456,16 +1686,20 @@ async function handleRequestInternal(req, res) {
       if (update && update.update_id) {
         await handleCustomerTelegramUpdate(update);
       }
-      json(res, 200, { ok: true });
+      json(res, 200, { ok: true }, {}, req);
     } catch (err) {
       console.error("Webhook customer error:", err.message);
-      json(res, 200, { ok: false, error: err.message });
+      json(res, 200, { ok: false, error: err.message }, {}, req);
     }
     return;
   }
 
   // 3. Автоматическая настройка вебхуков Telegram (GET /api/setup-webhooks)
   if (req.method === "GET" && req.url?.startsWith("/api/setup-webhooks")) {
+    if (!isAuthorizedAdminRequest(req)) {
+      json(res, 401, { error: "Доступ запрещён." }, {}, req);
+      return;
+    }
     const urlObj = new URL(req.url, `https://${req.headers.host || "127.0.0.1"}`);
     const hostParam = urlObj.searchParams.get("host");
     const proto = req.headers["x-forwarded-proto"] || "https";
@@ -1503,7 +1737,7 @@ async function handleRequestInternal(req, res) {
       }
     }
 
-    json(res, 200, { ok: true, webhooks: results });
+    json(res, 200, { ok: true, webhooks: results }, {}, req);
     return;
   }
 
@@ -1514,16 +1748,20 @@ async function handleRequestInternal(req, res) {
   }
 
   if (req.method === "POST" && req.url === "/api/products") {
+    if (!isAuthorizedAdminRequest(req)) {
+      json(res, 401, { error: "Доступ запрещён: требуется пароль администратора." }, {}, req);
+      return;
+    }
     try {
       const list = JSON.parse((await readBody(req, 25_000_000)) || "[]");
       if (!Array.isArray(list)) {
-        json(res, 400, { error: "Ожидался массив товаров." });
+        json(res, 400, { error: "Ожидался массив товаров." }, {}, req);
         return;
       }
       await dbSaveProducts(list);
-      json(res, 200, { ok: true, count: list.length });
+      json(res, 200, { ok: true, count: list.length }, {}, req);
     } catch (err) {
-      json(res, 500, { error: "Не удалось сохранить товары: " + err.message });
+      json(res, 500, { error: "Не удалось сохранить товары: " + err.message }, {}, req);
     }
     return;
   }
@@ -1535,37 +1773,80 @@ async function handleRequestInternal(req, res) {
   }
 
   if (req.method === "POST" && req.url === "/api/promotions") {
+    if (!isAuthorizedAdminRequest(req)) {
+      json(res, 401, { error: "Доступ запрещён: требуется пароль администратора." }, {}, req);
+      return;
+    }
     try {
       const list = JSON.parse((await readBody(req, 1_000_000)) || "[]");
       if (!Array.isArray(list)) {
-        json(res, 400, { error: "Ожидался массив акций." });
+        json(res, 400, { error: "Ожидался массив акций." }, {}, req);
         return;
       }
       await dbSavePromotions(list);
-      json(res, 200, { ok: true, count: list.length });
+      json(res, 200, { ok: true, count: list.length }, {}, req);
     } catch (err) {
-      json(res, 500, { error: "Не удалось сохранить акции: " + err.message });
+      json(res, 500, { error: "Не удалось сохранить акции: " + err.message }, {}, req);
     }
     return;
   }
 
+  // СОЗДАНИЕ ЗАКАЗА (С ЗАЩИТОЙ ОТ ПОДМЕНЫ ЦЕНЫ И RATE LIMITING)
   if (req.method === "POST" && req.url === "/api/order") {
+    const ip = getClientIp(req);
+    const rate = checkRateLimit(ip, "orders", 15, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      json(res, 429, { error: `Слишком много заказов. Пожалуйста, подождите ${rate.retryAfterSec} сек.` }, {}, req);
+      return;
+    }
+
     try {
       const body = JSON.parse((await readBody(req, 1_000_000)) || "{}");
-      if (!body.id || !body.items) {
-        json(res, 400, { error: "Некорректные данные заказа." });
+      if (!Array.isArray(body.items) || body.items.length === 0) {
+        json(res, 400, { error: "Некорректные данные заказа: корзина пуста." }, {}, req);
         return;
       }
+
+      // Серверный перерасчет цен и валидация товаров
+      const recalculated = await recalculateOrderTotal(body.items);
+      if (!recalculated.valid || recalculated.items.length === 0) {
+        json(res, 400, { error: "Выбранные товары недоступны." }, {}, req);
+        return;
+      }
+
+      const cleanName = sanitizeString(body.name || "", 100);
+      const cleanPhone = sanitizeString(body.phone || "", 30);
+      const cleanNote = sanitizeString(body.note || "", 500);
+
+      const verifiedOrder = {
+        id: sanitizeString(body.id, 64) || "FC-" + Date.now(),
+        createdAt: new Date().toISOString(),
+        name: cleanName,
+        phone: cleanPhone,
+        note: cleanNote,
+        items: recalculated.items,
+        total: recalculated.total, // СТРОГО СЕРВЕРНАЯ СУММА
+        status: "new",
+        paymentMethod: sanitizeString(body.paymentMethod || "card", 32),
+        paymentStatus: "pending",
+        paymentDetails: typeof body.paymentDetails === "object" ? JSON.stringify(body.paymentDetails) : "",
+      };
+
       try {
-        await dbSaveOrder(body);
+        await dbSaveOrder(verifiedOrder);
       } catch (err) {
         console.error("DB Order error:", err.message);
       }
-      notifyTelegramOrder(body).catch((err) => console.error("Telegram error:", err));
-      json(res, 200, { ok: true, id: body.id });
+
+      notifyTelegramOrder(verifiedOrder).catch((err) => console.error("Telegram error:", err));
+
+      const paymeUrl = getPaymeCheckoutUrl(verifiedOrder.id, verifiedOrder.total);
+      const clickUrl = getClickCheckoutUrl(verifiedOrder.id, verifiedOrder.total);
+
+      json(res, 200, { ok: true, id: verifiedOrder.id, total: verifiedOrder.total, paymeUrl, clickUrl }, {}, req);
     } catch (err) {
       console.error("Order API error:", err);
-      json(res, 500, { error: "Ошибка обработки заказа." });
+      json(res, 500, { error: "Ошибка обработки заказа." }, {}, req);
     }
     return;
   }
@@ -1600,6 +1881,13 @@ async function handleRequestInternal(req, res) {
 
   // ОНЛАЙН-ОПЛАТА КАРТАМИ УЗБЕКИСТАНА (ИНИЦИАЛИЗАЦИЯ И ВАЛИДАЦИЯ BIN)
   if (req.method === "POST" && req.url === "/api/payment/card-init") {
+    const ip = getClientIp(req);
+    const rate = checkRateLimit(ip, "card_init", 8, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      json(res, 429, { error: `Превышен лимит попыток. Подождите ${rate.retryAfterSec} сек.` }, {}, req);
+      return;
+    }
+
     try {
       const body = JSON.parse((await readBody(req, 1_000_000)) || "{}");
       const { orderId, cardNumber, exp, cvv } = body;
@@ -1690,6 +1978,13 @@ async function handleRequestInternal(req, res) {
 
   // ПОДТВЕРЖДЕНИЕ ОПЛАТЫ КАРТОЙ ПО SMS (OTP)
   if (req.method === "POST" && req.url === "/api/payment/card-confirm-otp") {
+    const ip = getClientIp(req);
+    const rate = checkRateLimit(ip, "otp_verify", 10, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      json(res, 429, { error: `Превышен лимит попыток ввода кода. Подождите ${rate.retryAfterSec} сек.` }, {}, req);
+      return;
+    }
+
     try {
       const body = JSON.parse((await readBody(req, 1_000_000)) || "{}");
       const { txId, otp } = body;
@@ -1765,6 +2060,13 @@ async function handleRequestInternal(req, res) {
 
   // ПОДТВЕРЖДЕНИЕ ПЕРЕВОДА («Я ОПЛАТИЛ» С ЧЕКОМ / НОМЕРОМ ТРАНЗАКЦИИ)
   if (req.method === "POST" && req.url === "/api/payment/confirm-transfer") {
+    const ip = getClientIp(req);
+    const rate = checkRateLimit(ip, "transfer_confirm", 10, 10 * 60 * 1000);
+    if (!rate.allowed) {
+      json(res, 429, { error: `Превышен лимит запросов. Подождите ${rate.retryAfterSec} сек.` }, {}, req);
+      return;
+    }
+
     try {
       const body = JSON.parse((await readBody(req, 12_000_000)) || "{}");
       const { orderId, transactionId, receiptImage } = body;
@@ -1820,6 +2122,13 @@ async function handleRequestInternal(req, res) {
   }
 
   if (req.method === "POST" && req.url === "/api/assistant") {
+    const ip = getClientIp(req);
+    const rate = checkRateLimit(ip, "assistant", 20, 60 * 1000);
+    if (!rate.allowed) {
+      json(res, 429, { error: `Превышен лимит запросов к стилисту. Подождите ${rate.retryAfterSec} сек.` }, {}, req);
+      return;
+    }
+
     try {
       const body = JSON.parse((await readBody(req, 4_000_000)) || "{}");
       const messages = normalizeMessages(body.messages);

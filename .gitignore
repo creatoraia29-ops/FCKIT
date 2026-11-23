@@ -4,6 +4,7 @@ Desktop.ini
 *.log
 .env
 .env.*
+!.env.example
 node_modules
 telegram_chats.json
 telegram_authorized_users.json

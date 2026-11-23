@@ -1,5 +1,5 @@
-const ADMIN_PASSWORD = "FCKIT-AFS";
 const ADMIN_SESSION_KEY = "fckit-admin-session";
+const ADMIN_TOKEN_KEY = "fckit-admin-token";
 
 // Элементы экрана
 const lock = document.getElementById("adminLock");
@@ -18,13 +18,40 @@ const sectionPromos = document.getElementById("sectionPromos");
 let currentTab = "orders";
 
 function isAuthed() {
-  return sessionStorage.getItem(ADMIN_SESSION_KEY) === "1";
+  return sessionStorage.getItem(ADMIN_SESSION_KEY) === "1" && Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY));
+}
+
+async function syncOrdersFromServer() {
+  const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+  if (!token) return;
+  try {
+    const res = await fetch(apiEndpoint("/api/orders"), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const serverOrders = await res.json();
+      if (Array.isArray(serverOrders) && serverOrders.length > 0) {
+        const local = readOrders();
+        const map = new Map();
+        local.forEach((o) => map.set(o.id, o));
+        serverOrders.forEach((o) => map.set(o.id, { ...map.get(o.id), ...o }));
+        const merged = Array.from(map.values()).sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
+        writeOrders(merged);
+        if (currentTab === "orders") renderOrders();
+      }
+    }
+  } catch (err) {
+    console.warn("Could not sync orders from server:", err);
+  }
 }
 
 function showApp() {
   lock.hidden = true;
   app.hidden = false;
   switchTab(currentTab);
+  syncOrdersFromServer();
 }
 
 function showLock() {
@@ -689,23 +716,45 @@ promosTableBody.addEventListener("click", (e) => {
 // -----------------------------------------------------------------------------
 // АВТОРИЗАЦИЯ И СЕССИЯ
 // -----------------------------------------------------------------------------
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const password = String(new FormData(loginForm).get("password") || "");
-  if (password !== ADMIN_PASSWORD) {
+  const password = String(new FormData(loginForm).get("password") || "").trim();
+  if (!password) return;
+
+  const submitBtn = loginForm.querySelector("button[type='submit']");
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const res = await fetch(apiEndpoint("/api/admin/login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      loginError.textContent = data.error || "Неверный пароль администратора";
+      loginError.hidden = false;
+      loginForm.password.value = "";
+      loginForm.password.focus();
+      return;
+    }
+
+    sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
+    sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+    loginError.hidden = true;
+    loginForm.reset();
+    showApp();
+  } catch (err) {
+    loginError.textContent = "Ошибка сети при авторизации";
     loginError.hidden = false;
-    loginForm.password.value = "";
-    loginForm.password.focus();
-    return;
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
-  sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
-  loginError.hidden = true;
-  loginForm.reset();
-  showApp();
 });
 
 logoutBtn.addEventListener("click", () => {
   sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
   showLock();
   loginForm.password.focus();
 });

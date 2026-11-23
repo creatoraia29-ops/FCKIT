@@ -54,6 +54,15 @@ function apiEndpoint(path) {
   return base ? `${base}${path}` : path;
 }
 
+function getAdminAuthHeader() {
+  try {
+    const token = sessionStorage.getItem("fckit-admin-token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 function saveProducts(list) {
   PRODUCTS = list;
   try {
@@ -61,7 +70,10 @@ function saveProducts(list) {
   } catch {}
   return fetch(apiEndpoint("/api/products"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAdminAuthHeader(),
+    },
     body: JSON.stringify(list),
   }).catch(() => {});
 }
@@ -83,7 +95,10 @@ function savePromos(list) {
   } catch {}
   return fetch(apiEndpoint("/api/promotions"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAdminAuthHeader(),
+    },
     body: JSON.stringify(list),
   }).catch(() => {});
 }
@@ -228,7 +243,8 @@ function escapeHtml(value) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatDateTime(iso) {

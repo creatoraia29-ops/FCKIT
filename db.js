@@ -462,9 +462,10 @@ async function dbFindOrder(query) {
       }
 
       // 2. Поиск по подстроке ID
+      const safeIdPart = q.replace(/[%_\\]/g, "\\$&");
       res = await db.execute({
-        sql: `SELECT * FROM orders WHERE id LIKE ? LIMIT 1`,
-        args: [`%${q}%`],
+        sql: `SELECT * FROM orders WHERE id LIKE ? ESCAPE '\\' LIMIT 1`,
+        args: [`%${safeIdPart}%`],
       });
       if (res.rows.length) {
         return parseOrderRow(res.rows[0]);
@@ -473,9 +474,10 @@ async function dbFindOrder(query) {
       // 3. Поиск по номеру телефона
       const digits = q.replace(/\D/g, "");
       if (digits.length >= 7) {
+        const safePhonePart = digits.slice(-7);
         res = await db.execute({
-          sql: `SELECT * FROM orders WHERE phone LIKE ? ORDER BY createdAt DESC LIMIT 1`,
-          args: [`%${digits.slice(-7)}%`],
+          sql: `SELECT * FROM orders WHERE phone LIKE ? ESCAPE '\\' ORDER BY createdAt DESC LIMIT 1`,
+          args: [`%${safePhonePart}%`],
         });
         if (res.rows.length) {
           return parseOrderRow(res.rows[0]);
