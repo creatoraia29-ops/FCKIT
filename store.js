@@ -108,8 +108,15 @@ function syncFromServer() {
     .then((r) => r.json())
     .then((list) => {
       if (Array.isArray(list) && list.length) {
-        PRODUCTS = list;
-        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(list));
+        const existingIds = new Set(list.map((p) => Number(p.id)));
+        const merged = [...list];
+        for (const initP of INITIAL_PRODUCTS) {
+          if (!existingIds.has(Number(initP.id))) {
+            merged.push(initP);
+          }
+        }
+        PRODUCTS = merged;
+        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(merged));
       }
     })
     .catch(() => {});
