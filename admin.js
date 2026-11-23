@@ -101,7 +101,7 @@ function orderItemMarkup(item) {
       <div class="cart-item__body">
         <p class="card__cat">${DEPARTMENT_TITLES[item.department] || ""} · ${SECTION_TITLES[item.section] || ""}</p>
         <h3 class="cart-item__title">${escapeHtml(item.title)}</h3>
-        <p class="card__price">${formatPrice(item.price)} · ${item.qty} шт.</p>
+        <p class="card__price">${formatPrice(item.price)} · ${item.qty} шт.${item.size ? ` · <span class="badge-tag" style="padding: 1px 6px; font-weight: 700; background: rgba(255,255,255,0.08); border: 1px solid var(--line);">Размер: ${escapeHtml(item.size)}</span>` : ""}</p>
       </div>
       <p class="cart-item__sum">${formatPrice(item.price * item.qty)}</p>
     </article>`;

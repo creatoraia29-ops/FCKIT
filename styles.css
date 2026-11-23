@@ -2567,6 +2567,87 @@ body[data-page="admin"] .admin-shell {
   border-color: #e2e8f0;
 }
 
+/* Выбор размера товара */
+.size-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.size-picker__title {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.size-picker__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.size-btn {
+  min-width: 38px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.size-btn:hover {
+  border-color: var(--fg);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.size-btn.is-active {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .size-btn {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+[data-theme="light"] .size-btn:hover {
+  border-color: #000000;
+  background: #f3f4f6;
+}
+
+[data-theme="light"] .size-btn.is-active {
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Компактный размер для карточек в сетке */
+.card .size-picker {
+  margin: 8px 0;
+}
+
+.card .size-btn {
+  min-width: 30px;
+  height: 28px;
+  font-size: 11.5px;
+  padding: 0 6px;
+}
+
 /* Блок ввода банковской карты */
 .card-pay-box {
   width: 100%;

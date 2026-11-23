@@ -185,6 +185,30 @@ function mediaMarkup(item, className) {
   return `<div class="${className}" style="${visualStyle(item)}">FCKIT</div>`;
 }
 
+const SIZES = ["S", "M", "L", "XL", "2XL"];
+
+function normalizeSize(size) {
+  const s = String(size || "").trim().toUpperCase();
+  return SIZES.includes(s) ? s : "M";
+}
+
+function sizePickerMarkup(productId, selectedSize = "M", prefix = "") {
+  const cur = normalizeSize(selectedSize);
+  return `
+    <div class="size-picker" data-size-picker="${prefix}${productId}">
+      <span class="size-picker__title">Размер:</span>
+      <div class="size-picker__list">
+        ${SIZES.map(
+          (sz) => `
+          <button type="button" class="size-btn${sz === cur ? " is-active" : ""}" data-size-val="${sz}" data-size-target="${prefix}${productId}">
+            ${sz}
+          </button>
+        `
+        ).join("")}
+      </div>
+    </div>`;
+}
+
 function readCart() {
   try {
     const raw = JSON.parse(localStorage.getItem(CART_KEY));
@@ -192,10 +216,10 @@ function readCart() {
     return raw
       .map((row) => ({
         id: Number(row.id),
-        qty: Math.floor(Number(row.qty)),
+        size: normalizeSize(row.size),
+        qty: Math.max(1, Math.min(99, Math.floor(Number(row.qty) || 1))),
       }))
-      .filter((row) => PRODUCTS.some((item) => item.id === row.id) && row.qty > 0)
-      .map((row) => ({ id: row.id, qty: Math.min(99, row.qty) }));
+      .filter((row) => PRODUCTS.some((item) => String(item.id) === String(row.id)));
   } catch {
     return [];
   }
@@ -207,11 +231,17 @@ function cartCount() {
 
 function cartLines() {
   return readCart()
-    .map((row) => ({
-      qty: row.qty,
-      item: PRODUCTS.find((item) => item.id === row.id),
-    }))
-    .filter((row) => row.item);
+    .map((row) => {
+      const item = PRODUCTS.find((item) => String(item.id) === String(row.id));
+      if (!item) return null;
+      return {
+        id: row.id,
+        size: row.size || "M",
+        qty: row.qty,
+        item,
+      };
+    })
+    .filter(Boolean);
 }
 
 function writeCart(items) {
@@ -219,23 +249,37 @@ function writeCart(items) {
   updateCartBadge();
 }
 
-function addToCart(id) {
+function addToCart(id, size = "M") {
+  const normId = Number(id);
+  const normSize = normalizeSize(size);
   const items = readCart();
-  const found = items.find((row) => row.id === id);
-  if (found) found.qty = Math.min(99, found.qty + 1);
-  else items.push({ id, qty: 1 });
+  const found = items.find((row) => row.id === normId && row.size === normSize);
+  if (found) {
+    found.qty = Math.min(99, found.qty + 1);
+  } else {
+    items.push({ id: normId, size: normSize, qty: 1 });
+  }
   writeCart(items);
 }
 
-function changeQty(id, delta) {
+function changeQty(id, size, delta) {
+  const normId = Number(id);
+  const normSize = normalizeSize(size);
   const items = readCart()
-    .map((row) => (row.id === id ? { ...row, qty: row.qty + delta } : row))
+    .map((row) => {
+      if (row.id === normId && row.size === normSize) {
+        return { ...row, qty: row.qty + delta };
+      }
+      return row;
+    })
     .filter((row) => row.qty > 0);
   writeCart(items);
 }
 
-function removeFromCart(id) {
-  writeCart(readCart().filter((row) => row.id !== id));
+function removeFromCart(id, size) {
+  const normId = Number(id);
+  const normSize = normalizeSize(size);
+  writeCart(readCart().filter((row) => !(row.id === normId && row.size === normSize)));
 }
 
 function escapeHtml(value) {
@@ -274,9 +318,10 @@ function writeOrders(orders) {
 }
 
 function snapshotCartLines() {
-  return cartLines().map(({ item, qty }) => ({
+  return cartLines().map(({ item, qty, size }) => ({
     id: item.id,
     title: item.title,
+    size: size || "M",
     qty,
     price: itemPrice(item),
     department: item.department,

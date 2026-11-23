@@ -47,10 +47,11 @@
     card.innerHTML = `
       ${mediaMarkup(item, "assistant-pick__visual")}
       <div>
-        <p class="card__cat">${DEPARTMENT_TITLES[item.department]} · ${SECTION_TITLES[item.section]}</p>
+        <p class="card__cat">${DEPARTMENT_TITLES[item.department] || ""} · ${SECTION_TITLES[item.section] || ""}</p>
         <a href="${href}">${escapeHtml(item.title)}</a>
         ${priceMarkup(item)}
-        <button type="button" class="btn" data-add="${item.id}">В корзину</button>
+        ${typeof sizePickerMarkup === "function" ? sizePickerMarkup(item.id, "M", "ai-") : ""}
+        <button type="button" class="btn" data-add="${item.id}" data-size="M" style="margin-top: 4px;">В корзину</button>
       </div>`;
     return card;
   }
@@ -117,11 +118,27 @@
   });
 
   log.addEventListener("click", (event) => {
+    const sizeBtn = event.target.closest("[data-size-val]");
+    if (sizeBtn) {
+      event.stopPropagation();
+      const container = sizeBtn.closest(".assistant-pick");
+      const size = sizeBtn.dataset.sizeVal;
+      const picker = sizeBtn.closest(".size-picker");
+      if (picker) {
+        picker.querySelectorAll(".size-btn").forEach((b) => b.classList.toggle("is-active", b === sizeBtn));
+      }
+      const addBtn = container?.querySelector("[data-add]");
+      if (addBtn) addBtn.dataset.size = size;
+      return;
+    }
+
     const button = event.target.closest("[data-add]");
     if (!button) return;
-    addToCart(Number(button.dataset.add));
+    const id = Number(button.dataset.add);
+    const size = button.dataset.size || "M";
+    addToCart(id, size);
     if (typeof flyBallToCart === "function") flyBallToCart(button);
-    button.textContent = "Добавлено";
+    button.textContent = `Добавлено (${size})`;
     window.setTimeout(() => {
       if (button.isConnected) button.textContent = "В корзину";
     }, 1200);

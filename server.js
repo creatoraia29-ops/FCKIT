@@ -497,7 +497,8 @@ async function notifyTelegramOrder(order) {
     .map((item, i) => {
       const dept = item.department === "men" ? "Мужской" : "Женский";
       const totalItem = formatSum(item.price * item.qty);
-      return `${i + 1}. <b>${escapeTg(item.title)}</b>\n   ▫️ ${item.qty} шт. × ${formatSum(item.price)} = <b>${totalItem}</b>\n   ▫️ <i>${dept} · ${escapeTg(item.section || "")}</i>`;
+      const sizeStr = item.size ? ` | <b>Размер: ${escapeTg(item.size)}</b>` : "";
+      return `${i + 1}. <b>${escapeTg(item.title)}</b>${sizeStr}\n   ▫️ ${item.qty} шт. × ${formatSum(item.price)} = <b>${totalItem}</b>\n   ▫️ <i>${dept} · ${escapeTg(item.section || "")}</i>`;
     })
     .join("\n\n");
 
@@ -1333,7 +1334,7 @@ async function recalculateOrderTotal(items) {
   for (const clientItem of items) {
     const prodId = Number(clientItem.id);
     const qty = Math.max(1, Math.min(99, Math.floor(Number(clientItem.qty) || 1)));
-    const product = products.find((p) => p.id === prodId);
+    const product = products.find((p) => Number(p.id) === prodId || String(p.id) === String(clientItem.id));
     if (!product) continue;
 
     let basePrice = Number(product.sale || product.price);
@@ -1361,6 +1362,7 @@ async function recalculateOrderTotal(items) {
       section: product.section,
       image: product.image,
       shade: product.shade,
+      size: sanitizeString(clientItem.size || "M", 10),
       qty,
     });
   }

@@ -11,11 +11,12 @@ function shelfCard(item) {
         ${dealBadge(item)}
       </div>
       <div class="card__body">
-        <p class="card__cat">${DEPARTMENT_TITLES[item.department]} · ${SECTION_TITLES[item.section]}</p>
-        <h3 class="card__title">${item.title}</h3>
+        <p class="card__cat">${DEPARTMENT_TITLES[item.department] || ""} · ${SECTION_TITLES[item.section] || ""}</p>
+        <h3 class="card__title">${escapeHtml(item.title)}</h3>
         ${priceMarkup(item)}
       </div>
-      <button type="button" class="btn btn-primary" data-add="${item.id}">В корзину</button>
+      ${typeof sizePickerMarkup === "function" ? sizePickerMarkup(item.id, "M", "shelf-") : ""}
+      <button type="button" class="btn btn-primary" data-add="${item.id}" data-size="M" style="width: 100%; min-height: 38px; margin-top: 6px;">В корзину</button>
     </article>`;
 }
 
@@ -26,27 +27,48 @@ function featureCard(item) {
         ${mediaMarkup(item, "card__visual")}
       </div>
       <div class="feature-hit__body">
-        <p class="card__cat">${DEPARTMENT_TITLES[item.department]} · ${SECTION_TITLES[item.section]}</p>
-        <h3 class="feature-hit__title">${item.title}</h3>
-        <p class="feature-hit__text">${item.text}</p>
+        <p class="card__cat">${DEPARTMENT_TITLES[item.department] || ""} · ${SECTION_TITLES[item.section] || ""}</p>
+        <h3 class="feature-hit__title">${escapeHtml(item.title)}</h3>
+        <p class="feature-hit__text">${escapeHtml(item.text || "")}</p>
         ${priceMarkup(item, "preview__price")}
-        <button type="button" class="btn btn-primary" data-add="${item.id}">В корзину</button>
+        ${typeof sizePickerMarkup === "function" ? sizePickerMarkup(item.id, "M", "feat-") : ""}
+        <button type="button" class="btn btn-primary" data-add="${item.id}" data-size="M" style="width: 100%; min-height: 44px; font-size: 15px; margin-top: 8px;">В корзину</button>
       </div>
     </article>`;
 }
 
-const featured = PRODUCTS.find((item) => item.hit && item.image) || PRODUCTS.find((item) => item.hit);
-hitBoard.innerHTML = featureCard(featured);
-dealBoard.innerHTML = PRODUCTS.filter((item) => item.sale).map(shelfCard).join("");
+const featured = PRODUCTS.find((item) => item.hit && item.image) || PRODUCTS.find((item) => item.hit) || PRODUCTS[0];
+if (hitBoard && featured) hitBoard.innerHTML = featureCard(featured);
+if (dealBoard) dealBoard.innerHTML = PRODUCTS.filter((item) => item.sale).map(shelfCard).join("");
 
-home.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-add]");
-  if (!button) return;
-  addToCart(Number(button.dataset.add));
-  flyBallToCart(button);
-  button.textContent = "Добавлено";
-  window.clearTimeout(addedTimer);
-  addedTimer = window.setTimeout(() => {
-    if (button.isConnected) button.textContent = "В корзину";
-  }, 1200);
-});
+if (home) {
+  home.addEventListener("click", (event) => {
+    // Выбор размера
+    const sizeBtn = event.target.closest("[data-size-val]");
+    if (sizeBtn) {
+      event.stopPropagation();
+      const container = sizeBtn.closest(".card, .feature-hit");
+      const size = sizeBtn.dataset.sizeVal;
+      const picker = sizeBtn.closest(".size-picker");
+      if (picker) {
+        picker.querySelectorAll(".size-btn").forEach((b) => b.classList.toggle("is-active", b === sizeBtn));
+      }
+      const addBtn = container?.querySelector("[data-add]");
+      if (addBtn) addBtn.dataset.size = size;
+      return;
+    }
+
+    // Добавление в корзину
+    const button = event.target.closest("[data-add]");
+    if (!button) return;
+    const id = Number(button.dataset.add);
+    const size = button.dataset.size || "M";
+    addToCart(id, size);
+    if (typeof flyBallToCart === "function") flyBallToCart(button);
+    button.textContent = `Добавлено (${size})`;
+    window.clearTimeout(addedTimer);
+    addedTimer = window.setTimeout(() => {
+      if (button.isConnected) button.textContent = "В корзину";
+    }, 1200);
+  });
+}
