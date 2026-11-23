@@ -505,8 +505,10 @@ async function notifyTelegramOrder(order) {
     timeZone: "Asia/Tashkent",
   });
 
-  let payInfo = "💳 <b>Способ оплаты:</b> Банковская карта (онлайн)";
-  if (order.paymentMethod === "transfer") {
+  let payInfo = "📲 <b>Способ оплаты:</b> Перевод на карту Visa Uzum";
+  if (order.paymentMethod === "apps") {
+    payInfo = "⚡ <b>Способ оплаты:</b> Банковские приложения (Payme / Click / Uzum)";
+  } else if (order.paymentMethod === "transfer") {
     payInfo = "📲 <b>Способ оплаты:</b> Перевод на карту Visa Uzum";
   } else if (order.paymentMethod === "cash") {
     payInfo = "💵 <b>Способ оплаты:</b> При получении (наличные)";
@@ -524,10 +526,11 @@ async function notifyTelegramOrder(order) {
     `━━━━━━━━━━━━━━━━━━━━`,
     `👤 <b>Заказчик:</b> ${escapeTg(order.name || "Не указано")}`,
     `📞 <b>Телефон:</b> <code>${escapeTg(order.phone || "Не указан")}</code>`,
-    order.note ? `📝 <b>Комментарий:</b> <i>${escapeTg(order.note)}</i>` : null,
+    order.note ? `📝 <b>Адрес / Примечание:</b> <i>${escapeTg(order.note)}</i>` : null,
     `━━━━━━━━━━━━━━━━━━━━`,
     payInfo,
     payStatusInfo,
+    `🚚 <b>Доставка:</b> Оплачивается покупателем при получении (курьеру / Yandex Go)`,
     `━━━━━━━━━━━━━━━━━━━━`,
     `📦 <b>Состав заказа:</b>`,
     itemsList || "—",
@@ -1866,6 +1869,8 @@ async function handleRequestInternal(req, res) {
     const rawNumber = String(process.env.RECIPIENT_CARD_NUMBER || "4916990350013485").trim();
     const formattedNumber = rawNumber.replace(/(\d{4})/g, "$1 ").trim();
     const total = order?.total || 0;
+    const paymeUrl = order ? getPaymeCheckoutUrl(order.id, total) : null;
+    const clickUrl = order ? getClickCheckoutUrl(order.id, total) : null;
     json(res, 200, {
       ok: true,
       orderId: order?.id || orderId || "FC-ORDER",
@@ -1875,6 +1880,8 @@ async function handleRequestInternal(req, res) {
       cardNumberRaw: rawNumber,
       bank: String(process.env.RECIPIENT_CARD_BANK || "Visa Uzum Bank").trim(),
       recipientName: String(process.env.RECIPIENT_CARD_NAME || "FCKIT").trim(),
+      paymeUrl,
+      clickUrl,
     });
     return;
   }

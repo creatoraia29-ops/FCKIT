@@ -2537,6 +2537,36 @@ body[data-page="admin"] .admin-shell {
   line-height: 1.35;
 }
 
+/* Предупреждение о доставке и важная информация */
+.cart-important-warning {
+  margin: 14px 0 8px;
+  padding: 12px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #ef4444;
+}
+
+[data-theme="light"] .cart-important-warning {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.local-apps-box {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+[data-theme="light"] .local-apps-box {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
 /* Блок ввода банковской карты */
 .card-pay-box {
   width: 100%;

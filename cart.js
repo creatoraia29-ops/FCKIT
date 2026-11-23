@@ -6,99 +6,7 @@ function apiEndpoint(path) {
   return base ? `${base}${path}` : path;
 }
 
-// Валидация и автоопределение банковских карт для Узбекистана
-function detectUzbekCard(rawNumber) {
-  const d = String(rawNumber || "").replace(/\D/g, "");
-  if (!d) return { brand: null, name: "", valid: false, needsCvv: false, error: null };
 
-  // 1. Uzcard: 16 цифр, начинается на 8600, 5614, 5440, 6262
-  if (d.startsWith("8600") || d.startsWith("5614") || d.startsWith("5440") || d.startsWith("6262")) {
-    return {
-      brand: "uzcard",
-      name: "Uzcard",
-      valid: d.length === 16,
-      needsCvv: false,
-      error: d.length > 16 ? "Номер карты Uzcard должен содержать ровно 16 цифр" : null,
-    };
-  }
-
-  // 2. Humo: 16 цифр, начинается на 9860
-  if (d.startsWith("9860")) {
-    return {
-      brand: "humo",
-      name: "Humo",
-      valid: d.length === 16,
-      needsCvv: false,
-      error: d.length > 16 ? "Номер карты Humo должен содержать ровно 16 цифр" : null,
-    };
-  }
-
-  // 3. Visa: 16 цифр, начинается на 4
-  if (d.startsWith("4")) {
-    return {
-      brand: "visa",
-      name: "Visa",
-      valid: d.length === 16,
-      needsCvv: true,
-      error: d.length > 16 ? "Номер карты Visa должен содержать ровно 16 цифр" : null,
-    };
-  }
-
-  // 4. Mastercard: 16 цифр, начинается на 51-55 или 2221-2720 (включая кобейджинг)
-  const mc2 = Number(d.slice(0, 2));
-  const mc4 = Number(d.slice(0, 4));
-  if ((mc2 >= 51 && mc2 <= 55) || (mc4 >= 2221 && mc4 <= 2720)) {
-    return {
-      brand: "mastercard",
-      name: "Mastercard",
-      valid: d.length === 16,
-      needsCvv: true,
-      error: d.length > 16 ? "Номер карты Mastercard должен содержать ровно 16 цифр" : null,
-    };
-  }
-
-  // В процессе набора первых цифр префикса
-  if (["8", "86", "860", "5", "56", "54", "6", "62", "9", "98", "986", "2", "22", "222"].includes(d)) {
-    return { brand: null, name: "", valid: false, needsCvv: false, error: null };
-  }
-
-  // Запрещённые платёжные системы
-  if (mc4 >= 2200 && mc4 <= 2204) {
-    return {
-      brand: null,
-      name: "",
-      valid: false,
-      error: "⚠️ Карты «МИР» не поддерживаются. Принимаются только карты банков Узбекистана: Uzcard, Humo, Visa и Mastercard.",
-    };
-  }
-  if (d.startsWith("62") && !d.startsWith("6262")) {
-    return {
-      brand: null,
-      name: "",
-      valid: false,
-      error: "⚠️ Карты UnionPay не поддерживаются. Доступны только карты Узбекистана: Uzcard, Humo, Visa и Mastercard.",
-    };
-  }
-  if (d.startsWith("34") || d.startsWith("37")) {
-    return {
-      brand: null,
-      name: "",
-      valid: false,
-      error: "⚠️ Карты American Express не поддерживаются. Доступны только карты Узбекистана: Uzcard, Humo, Visa и Mastercard.",
-    };
-  }
-
-  if (d.length >= 4) {
-    return {
-      brand: null,
-      name: "",
-      valid: false,
-      error: "⚠️ Поддерживаются исключительно банковские карты Узбекистана: Uzcard, Humo, Visa и Mastercard.",
-    };
-  }
-
-  return { brand: null, name: "", valid: false, needsCvv: false, error: null };
-}
 
 function lineMarkup(row) {
   const { item, qty } = row;
@@ -127,7 +35,7 @@ function checkoutMarkup(total) {
     <form class="checkout" id="checkoutForm">
       <div class="checkout__head">
         <h3>Оформить заказ</h3>
-        <p>Доставка напрямую из Китая по всему Узбекистану за 7–10 дней.</p>
+        <p>Прямая доставка из Китая по всему Узбекистану за 7–10 дней.</p>
       </div>
       <div class="checkout__grid">
         <label class="checkout__field">
@@ -145,76 +53,46 @@ function checkoutMarkup(total) {
       </div>
 
       <!-- Выбор способа оплаты -->
-      <div class="pay-methods-title">Способ оплаты (только для Узбекистана)</div>
+      <div class="pay-methods-title">Способ оплаты (Узбекистан)</div>
       <div class="pay-methods-grid">
-        <label class="pay-method-card is-selected" id="lblPayCard">
-          <input type="radio" name="paymentMethod" value="online_card" checked />
-          <div class="pay-method-info">
-            <span class="pay-method-name">💳 Картой онлайн</span>
-            <span class="pay-method-desc">Uzcard, Humo, Visa, Mastercard</span>
-          </div>
-        </label>
-        <label class="pay-method-card" id="lblPayTransfer">
-          <input type="radio" name="paymentMethod" value="transfer" />
+        <label class="pay-method-card is-selected" id="lblPayTransfer">
+          <input type="radio" name="paymentMethod" value="transfer" checked />
           <div class="pay-method-info">
             <span class="pay-method-name">📲 Перевод на карту</span>
-            <span class="pay-method-desc">Visa Uzum, Click, Payme</span>
+            <span class="pay-method-desc">Visa Uzum Bank / Любой банк Узбекистана</span>
+          </div>
+        </label>
+        <label class="pay-method-card" id="lblPayApps">
+          <input type="radio" name="paymentMethod" value="apps" />
+          <div class="pay-method-info">
+            <span class="pay-method-name">⚡ Банковские приложения</span>
+            <span class="pay-method-desc">Payme, Click, Uzum Bank</span>
           </div>
         </label>
       </div>
 
-      <!-- 1. Панель ввода банковской карты -->
-      <div class="card-pay-box" id="cardPayPanel">
-        <div class="card-brands-header">
-          <span class="card-brands-label">Банковские карты Узбекистана</span>
-          <div class="card-brands-row">
-            <span class="card-brand-badge" id="badgeUzcard" title="Uzcard">
-              <img src="img/cards/uzcard.svg" alt="Uzcard" />
-            </span>
-            <span class="card-brand-badge" id="badgeHumo" title="Humo">
-              <img src="img/cards/humo.svg" alt="Humo" />
-            </span>
-            <span class="card-brand-badge" id="badgeVisa" title="Visa">
-              <img src="img/cards/visa.svg" alt="Visa" />
-            </span>
-            <span class="card-brand-badge" id="badgeMastercard" title="Mastercard">
-              <img src="img/cards/mastercard.svg" alt="Mastercard" />
-            </span>
-          </div>
-        </div>
-
-        <label class="checkout__field checkout__field--wide" style="margin: 0;">
-          <span>Номер карты (16 цифр)</span>
-          <input type="text" id="cardNumInput" placeholder="8600 •••• •••• ••••" inputmode="numeric" autocomplete="cc-number" maxlength="19" />
-        </label>
-        <div class="card-error-banner" id="cardErrorBanner"></div>
-
-        <div class="card-row-two">
-          <label class="checkout__field" style="margin: 0;">
-            <span>Срок действия</span>
-            <input type="text" id="cardExpInput" placeholder="ММ / ГГ" inputmode="numeric" autocomplete="cc-exp" maxlength="5" />
-          </label>
-          <label class="checkout__field" id="cardCvvField" style="margin: 0;">
-            <span>Код CVV / CVC</span>
-            <input type="password" id="cardCvvInput" placeholder="•••" inputmode="numeric" autocomplete="cc-csc" maxlength="3" />
-          </label>
-        </div>
-
-        <div class="card-sms-note" id="cardSmsNote">
-          🔒 Оплата защищена. Списание производится в узбекских сумах (UZS).
-        </div>
-      </div>
-
-      <!-- 2. Панель для перевода на карту -->
-      <div class="card-pay-box" id="transferPreviewPanel" style="display: none;">
-        <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg);">
-          📲 <b>Прямой перевод на карту Visa Uzum Bank</b> через мобильные приложения <b>Uzum Bank</b>, <b>Click</b> или <b>Payme</b>.<br>
-          <span style="color: var(--muted); font-size: 12px;">Реквизиты карты и форма отправки чека откроются сразу после нажатия кнопки.</span>
+      <!-- Подсказка выбранного способа оплаты -->
+      <div class="card-pay-box" id="payMethodNotice">
+        <p id="payMethodNoticeText" style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg);">
+          📲 <b>Прямой перевод на карту Visa Uzum Bank</b> через мобильный банкинг любого банка Узбекистана.<br>
+          <span style="color: var(--muted); font-size: 12px;">Реквизиты карты, сумма к переводу и форма отправки чека будут показаны сразу после подтверждения заказа.</span>
         </p>
       </div>
 
+      <!-- Важная информация перед оплатой мелким красным шрифтом -->
+      <div class="cart-important-warning" style="margin: 14px 0 8px; padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; font-size: 11.5px; line-height: 1.55; color: #ef4444;">
+        <div style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+          <span>⚠️</span> ВАЖНАЯ ИНФОРМАЦИЯ О ДОСТАВКЕ И ОПЛАТЕ:
+        </div>
+        <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px;">
+          <li><b>Доставка до вас не входит в цену товара</b> и оплачивается покупателем отдельно при вручении курьеру на руки либо через сервис <b>Yandex Go</b>.</li>
+          <li>Срок экспресс-доставки из Китая в города Узбекистана составляет <b>7–10 рабочих дней</b> с предоставлением трек-номера.</li>
+          <li>После оплаты обязательно прикрепите фото или скриншот чека из галереи телефона для быстрой сборки и передачи посылки в логистику.</li>
+        </ul>
+      </div>
+
       <button type="submit" class="btn btn-primary" id="btnSubmitOrder" style="width: 100%; min-height: 48px; font-size: 16px; margin-top: 6px;">
-        💳 Оплатить картой ${formatPrice(total)}
+        📲 Перейти к оплате ${formatPrice(total)}
       </button>
     </form>`;
 }
@@ -236,7 +114,12 @@ function renderCart() {
       ${rows.map(lineMarkup).join("")}
     </div>
     <div class="cart-summary">
-      <p class="cart-total">Итого: <strong>${formatPrice(total)}</strong></p>
+      <div>
+        <p class="cart-total" style="margin: 0;">Итого: <strong>${formatPrice(total)}</strong></p>
+        <span style="color: #ef4444; font-size: 11.5px; font-weight: 500; display: block; margin-top: 3px;">
+          * Доставка не входит в итоговую цену и оплачивается отдельно при получении (курьеру / Yandex Go)
+        </span>
+      </div>
       <button type="button" class="btn" data-cart-action="clear">Очистить</button>
     </div>
     ${checkoutMarkup(total)}`;
@@ -246,142 +129,35 @@ function initPaymentEvents(total) {
   const form = document.getElementById("checkoutForm");
   if (!form) return;
 
-  const cardPanel = document.getElementById("cardPayPanel");
-  const transferPanel = document.getElementById("transferPreviewPanel");
   const btnSubmit = document.getElementById("btnSubmitOrder");
+  const noticeText = document.getElementById("payMethodNoticeText");
 
-  const cardNumInput = document.getElementById("cardNumInput");
-  const cardExpInput = document.getElementById("cardExpInput");
-  const cardCvvInput = document.getElementById("cardCvvInput");
-  const cardCvvField = document.getElementById("cardCvvField");
-  const cardErrorBanner = document.getElementById("cardErrorBanner");
-  const cardSmsNote = document.getElementById("cardSmsNote");
-
-  const badges = {
-    uzcard: document.getElementById("badgeUzcard"),
-    humo: document.getElementById("badgeHumo"),
-    visa: document.getElementById("badgeVisa"),
-    mastercard: document.getElementById("badgeMastercard"),
-  };
-
-  // Переключение способов оплаты
+  // Переключение способов оплаты (только перевод и приложения)
   form.querySelectorAll('input[name="paymentMethod"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       document.querySelectorAll(".pay-method-card").forEach((card) => card.classList.remove("is-selected"));
       radio.closest(".pay-method-card")?.classList.add("is-selected");
 
       const method = radio.value;
-      if (method === "online_card") {
-        cardPanel.style.display = "flex";
-        transferPanel.style.display = "none";
-        btnSubmit.innerHTML = `💳 Оплатить картой ${formatPrice(total)}`;
+      if (method === "apps") {
+        if (noticeText) {
+          noticeText.innerHTML = `⚡ <b>Оплата через приложения Payme, Click или Uzum Bank.</b><br><span style="color: var(--muted); font-size: 12px;">Вам будут доступны прямые кнопки перехода в Payme / Click и реквизиты с подтверждением чека.</span>`;
+        }
+        btnSubmit.innerHTML = `⚡ Оплатить через Payme / Click ${formatPrice(total)}`;
       } else {
-        cardPanel.style.display = "none";
-        transferPanel.style.display = "block";
-        btnSubmit.innerHTML = `📲 Перейти к оплате переводом ${formatPrice(total)}`;
+        if (noticeText) {
+          noticeText.innerHTML = `📲 <b>Прямой перевод на карту Visa Uzum Bank</b> через мобильный банкинг любого банка Узбекистана.<br><span style="color: var(--muted); font-size: 12px;">Реквизиты карты, сумма к переводу и форма отправки чека откроются сразу после подтверждения заказа.</span>`;
+        }
+        btnSubmit.innerHTML = `📲 Перейти к оплате ${formatPrice(total)}`;
       }
     });
   });
-
-  // Автоформатирование и валидация номера карты
-  if (cardNumInput) {
-    cardNumInput.addEventListener("input", (e) => {
-      let val = e.target.value.replace(/\D/g, "").slice(0, 16);
-      const parts = val.match(/.{1,4}/g);
-      e.target.value = parts ? parts.join(" ") : "";
-
-      const detect = detectUzbekCard(val);
-
-      // Ошибка недопустимой карты
-      if (detect.error) {
-        cardErrorBanner.textContent = detect.error;
-        cardErrorBanner.style.display = "block";
-      } else {
-        cardErrorBanner.style.display = "none";
-      }
-
-      // Подсветка брендов
-      Object.keys(badges).forEach((key) => {
-        const el = badges[key];
-        if (!el) return;
-        el.classList.remove("is-active", "is-dimmed");
-        if (detect.brand) {
-          if (detect.brand === key) {
-            el.classList.add("is-active");
-          } else {
-            el.classList.add("is-dimmed");
-          }
-        }
-      });
-
-      // Переключение CVV/CVC для Uzcard/Humo vs Visa/Mastercard
-      if (detect.brand === "uzcard" || detect.brand === "humo") {
-        cardCvvField.style.display = "none";
-        cardCvvInput.removeAttribute("required");
-        cardCvvInput.value = "";
-        cardSmsNote.innerHTML = `🔒 <b>Для карты ${detect.name} CVV не нужен</b> — списание подтверждается кодом по SMS (OTP).`;
-      } else if (detect.brand === "visa" || detect.brand === "mastercard") {
-        cardCvvField.style.display = "flex";
-        cardCvvInput.setAttribute("required", "required");
-        cardSmsNote.innerHTML = `🔒 Карта <b>${detect.name}</b>: введите CVV/CVC с обратной стороны карты.`;
-      } else {
-        cardCvvField.style.display = "flex";
-        cardSmsNote.innerHTML = `🔒 Оплата защищена. Списание производится в узбекских сумах (UZS).`;
-      }
-    });
-  }
-
-  // Срок действия MM/YY
-  if (cardExpInput) {
-    cardExpInput.addEventListener("input", (e) => {
-      let val = e.target.value.replace(/\D/g, "").slice(0, 4);
-      if (val.length >= 2) {
-        const mm = Number(val.slice(0, 2));
-        if (mm > 12) val = "12" + val.slice(2);
-        if (mm === 0) val = "01" + val.slice(2);
-        val = val.slice(0, 2) + "/" + val.slice(2);
-      }
-      e.target.value = val;
-    });
-  }
-
-  // CVV код
-  if (cardCvvInput) {
-    cardCvvInput.addEventListener("input", (e) => {
-      e.target.value = e.target.value.replace(/\D/g, "").slice(0, 3);
-    });
-  }
 
   // Обработка отправки формы оформления
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(form);
-    const method = data.get("paymentMethod") || "online_card";
-
-    // Клиентская валидация при оплате картой
-    if (method === "online_card") {
-      const rawCard = (cardNumInput?.value || "").replace(/\D/g, "");
-      const detect = detectUzbekCard(rawCard);
-      if (!detect.valid || !detect.brand) {
-        alert(detect.error || "Пожалуйста, введите корректный 16-значный номер карты Узбекистана (Uzcard, Humo, Visa или Mastercard).");
-        cardNumInput?.focus();
-        return;
-      }
-      const exp = (cardExpInput?.value || "").trim();
-      if (!/^(0[1-9]|1[0-2])\/?([2-9][0-9])$/.test(exp)) {
-        alert("Пожалуйста, укажите срок действия карты в формате MM/YY.");
-        cardExpInput?.focus();
-        return;
-      }
-      if (detect.needsCvv) {
-        const cvv = (cardCvvInput?.value || "").trim();
-        if (cvv.length !== 3) {
-          alert(`Для карты ${detect.name} необходимо указать 3 цифры CVV/CVC кода.`);
-          cardCvvInput?.focus();
-          return;
-        }
-      }
-    }
+    const method = data.get("paymentMethod") || "transfer";
 
     btnSubmit.disabled = true;
     btnSubmit.textContent = "Создание заказа...";
@@ -401,138 +177,23 @@ function initPaymentEvents(total) {
 
     try {
       // Отправляем заказ на сервер
-      await fetch(apiEndpoint("/api/order"), {
+      const res = await fetch(apiEndpoint("/api/order"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(order),
       });
+      const orderRes = await res.json().catch(() => ({}));
+      if (orderRes && orderRes.total) {
+        order.total = orderRes.total;
+        if (orderRes.paymeUrl) order.paymeUrl = orderRes.paymeUrl;
+        if (orderRes.clickUrl) order.clickUrl = orderRes.clickUrl;
+      }
     } catch (err) {
       console.error("Ошибка сохранения заказа:", err);
     }
 
-    // Ветвление по способам оплаты:
-    if (method === "online_card") {
-      btnSubmit.textContent = "Связь с банком...";
-      const rawCard = (cardNumInput?.value || "").replace(/\D/g, "");
-      const exp = (cardExpInput?.value || "").trim();
-      const cvv = (cardCvvInput?.value || "").trim();
-
-      try {
-        const initRes = await fetch(apiEndpoint("/api/payment/card-init"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderId: order.id,
-            cardNumber: rawCard,
-            exp,
-            cvv,
-          }),
-        });
-
-        const initData = await initRes.json();
-        if (!initRes.ok || !initData.ok) {
-          alert(initData.error || "Ошибка инициализации оплаты картой.");
-          btnSubmit.disabled = false;
-          btnSubmit.innerHTML = `💳 Оплатить картой ${formatPrice(total)}`;
-          return;
-        }
-
-        // Открываем модальное окно ввода SMS OTP
-        showOtpModal({
-          order,
-          txId: initData.txId,
-          brand: initData.cardName,
-          last4: initData.last4,
-          phoneMask: initData.phoneMask,
-          demoOtp: initData.demoOtp,
-        });
-      } catch (e) {
-        alert("Не удалось связаться с платёжным сервером. Попробуйте позже.");
-        btnSubmit.disabled = false;
-      }
-    } else {
-      // Открываем экран перевода на карту Visa Uzum
-      renderTransferScreen(order);
-    }
-  });
-}
-
-// Модальное окно SMS-подтверждения (OTP)
-function showOtpModal({ order, txId, brand, last4, phoneMask, demoOtp }) {
-  const overlay = document.createElement("div");
-  overlay.className = "otp-overlay";
-  overlay.innerHTML = `
-    <div class="otp-dialog">
-      <div style="font-size: 36px;">📱</div>
-      <h3 style="margin: 0; font-size: 20px;">Подтверждение оплаты</h3>
-      <p style="margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.45;">
-        На номер <strong>${escapeHtml(phoneMask)}</strong> отправлено SMS с кодом подтверждения для списания <strong>${formatPrice(order.total)}</strong> с карты <strong>${escapeHtml(brand)}</strong> (•••• ${escapeHtml(last4)}).
-      </p>
-      ${demoOtp ? `<div style="padding: 6px 10px; background: rgba(0, 165, 80, 0.15); border: 1px solid rgba(0, 165, 80, 0.35); border-radius: 6px; font-size: 12px; color: #2ecc71;">Код подтверждения: <strong>${demoOtp}</strong> (или 123456)</div>` : ""}
-      
-      <input type="text" class="otp-input" id="otpCodeInput" maxlength="6" inputmode="numeric" placeholder="••••••" autofocus />
-      <div id="otpErrorMsg" style="color: #ff6b6b; font-size: 13px; display: none;"></div>
-
-      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
-        <button type="button" class="btn btn-primary" id="btnConfirmOtp" style="min-height: 46px;">
-          Подтвердить списание ${formatPrice(order.total)}
-        </button>
-        <button type="button" class="btn" id="btnCancelOtp">Отмена</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  const otpInput = overlay.querySelector("#otpCodeInput");
-  const btnConfirm = overlay.querySelector("#btnConfirmOtp");
-  const btnCancel = overlay.querySelector("#btnCancelOtp");
-  const errorMsg = overlay.querySelector("#otpErrorMsg");
-
-  otpInput?.focus();
-
-  btnCancel.addEventListener("click", () => {
-    overlay.remove();
-  });
-
-  const submitOtp = async () => {
-    const code = (otpInput?.value || "").trim();
-    if (code.length < 4) {
-      errorMsg.textContent = "Введите код из SMS (6 цифр)";
-      errorMsg.style.display = "block";
-      return;
-    }
-    btnConfirm.disabled = true;
-    btnConfirm.textContent = "Проверка...";
-    errorMsg.style.display = "none";
-
-    try {
-      const res = await fetch(apiEndpoint("/api/payment/card-confirm-otp"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ txId, otp: code }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        errorMsg.textContent = data.error || "Неверный код подтверждения.";
-        errorMsg.style.display = "block";
-        btnConfirm.disabled = false;
-        btnConfirm.textContent = `Подтвердить списание ${formatPrice(order.total)}`;
-        return;
-      }
-
-      overlay.remove();
-      renderCardSuccessScreen(order, brand, last4);
-    } catch (e) {
-      errorMsg.textContent = "Ошибка связи с сервером.";
-      errorMsg.style.display = "block";
-      btnConfirm.disabled = false;
-      btnConfirm.textContent = "Попробовать снова";
-    }
-  };
-
-  btnConfirm.addEventListener("click", submitOtp);
-  otpInput?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") submitOtp();
+    // Переходим на экран оплаты
+    renderTransferScreen(order, method);
   });
 }
 
@@ -617,33 +278,8 @@ function bindPostReceiptWidget(order) {
   });
 }
 
-// Экран успешной оплаты картой
-function renderCardSuccessScreen(order, brand, last4) {
-  cartBoard.innerHTML = `
-    <div class="cart-empty" style="text-align: center; max-width: 480px; margin: 0 auto;">
-      <div style="font-size: 48px; margin-bottom: 8px;">🎉</div>
-      <h3 style="margin: 0; font-size: 22px; color: #2ecc71;">Оплата прошла успешно!</h3>
-      <p style="margin: 8px 0; font-size: 15px;">
-        Номер заказа: <strong>${escapeHtml(order.id)}</strong><br>
-        Сумма списания: <strong>${formatPrice(order.total)}</strong><br>
-        Карта: <strong>${escapeHtml(brand)}</strong> (•••• ${escapeHtml(last4)})
-      </p>
-      <p style="color: var(--muted); font-size: 13.5px; line-height: 1.45;">
-        Электронный чек сформирован. Менеджер уже передал ваш заказ на склад для прямой доставки из Китая за 7–10 дней.
-      </p>
-      ${attachReceiptWidgetMarkup(order)}
-      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 22px;">
-        <a class="btn btn-primary" href="https://t.me/FCKIT_USERBot?start=${encodeURIComponent(order.id)}" target="_blank" rel="noopener">
-          🤖 Отслеживать статус в Telegram-боте
-        </a>
-        <a class="btn" href="catalog.html">Вернуться в каталог</a>
-      </div>
-    </div>`;
-  bindPostReceiptWidget(order);
-}
-
-// Экран перевода на карту Visa Uzum (с защищённой подгрузкой реквизитов из .env)
-async function renderTransferScreen(order) {
+// Экран перевода на карту и оплаты через приложения (с защищённой подгрузкой реквизитов из .env)
+async function renderTransferScreen(order, method = "transfer") {
   cartBoard.innerHTML = `
     <div class="cart-empty" style="text-align: center; max-width: 420px; margin: 0 auto;">
       <p>Загрузка платёжных реквизитов...</p>
@@ -660,13 +296,30 @@ async function renderTransferScreen(order) {
     cartBoard.innerHTML = `
       <div class="transfer-view">
         <div style="text-align: center;">
-          <h3 style="margin: 0 0 4px; font-size: 21px;">Оплата переводом на карту</h3>
+          <h3 style="margin: 0 0 4px; font-size: 21px;">${method === "apps" ? "Оплата через банковские приложения" : "Оплата переводом на карту"}</h3>
           <p style="margin: 0; font-size: 13px; color: var(--muted);">Заказ #${escapeHtml(order.id)}</p>
         </div>
 
         <div class="transfer-amount-card">
-          <div class="transfer-amount-label">Точная сумма к переводу:</div>
+          <div class="transfer-amount-label">Точная сумма к оплате:</div>
           <div class="transfer-amount-value">${data.totalFormatted}</div>
+        </div>
+
+        <!-- Важная информация красным мелким шрифтом -->
+        <div class="cart-important-warning" style="margin: 4px 0 12px; padding: 10px 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; font-size: 11.5px; line-height: 1.45; color: #ef4444;">
+          ⚠️ <b>Внимание:</b> Стоимость доставки <b>не входит</b> в эту сумму. Доставка оплачивается покупателем отдельно при получении на руки курьеру либо через сервис <b>Yandex Go</b>.
+        </div>
+
+        <!-- Быстрая оплата в местных приложениях -->
+        <div class="local-apps-box" style="padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px;">
+          <div style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 8px;">
+            Оплата через мобильные приложения:
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
+            ${data.clickUrl ? `<a href="${data.clickUrl}" target="_blank" rel="noopener" class="btn" style="background: #0073ff; color: #fff; font-weight: 600; text-align: center; border-color: #0073ff;">🔵 Click Pay</a>` : `<a href="https://my.click.uz/" target="_blank" rel="noopener" class="btn" style="background: rgba(0, 115, 255, 0.12); color: #0073ff; border: 1px solid rgba(0, 115, 255, 0.4); font-weight: 600; text-align: center;">🔵 Открыть Click</a>`}
+            ${data.paymeUrl ? `<a href="${data.paymeUrl}" target="_blank" rel="noopener" class="btn" style="background: #25c2a0; color: #fff; font-weight: 600; text-align: center; border-color: #25c2a0;">🟣 Payme Pay</a>` : `<a href="https://payme.uz/" target="_blank" rel="noopener" class="btn" style="background: rgba(37, 194, 160, 0.12); color: #25c2a0; border: 1px solid rgba(37, 194, 160, 0.4); font-weight: 600; text-align: center;">🟣 Открыть Payme</a>`}
+            <a href="https://uzumbank.uz/" target="_blank" rel="noopener" class="btn" style="background: rgba(123, 44, 191, 0.12); color: #c084fc; border: 1px solid rgba(123, 44, 191, 0.4); font-weight: 600; text-align: center;">🟢 Uzum Bank</a>
+          </div>
         </div>
 
         <!-- Пластиковая карточка реквизитов -->
@@ -686,10 +339,10 @@ async function renderTransferScreen(order) {
 
         <!-- Инструкция -->
         <div class="transfer-steps-list">
-          <div><b>1.</b> Скопируйте номер карты Visa Uzum выше</div>
-          <div><b>2.</b> Откройте приложение <b>Uzum Bank</b>, <b>Click</b> или <b>Payme</b></div>
-          <div><b>3.</b> Переведите точную сумму: <b>${data.totalFormatted}</b></div>
-          <div><b>4.</b> Прикрепите скриншот чека или укажите номер квитанции и нажмите «Я оплатил»</div>
+          <div><b>1.</b> Скопируйте номер карты выше или откройте приложение <b>Click</b>, <b>Payme</b> или <b>Uzum Bank</b></div>
+          <div><b>2.</b> Переведите точную сумму: <b>${data.totalFormatted}</b></div>
+          <div><b>3.</b> Прикрепите фото или скриншот чека из галереи телефона/ПК (или укажите номер транзакции)</div>
+          <div><b>4.</b> Нажмите «✅ Я оплатил» для быстрой передачи заказа в сборку</div>
         </div>
 
         <!-- Форма подтверждения перевода («Я оплатил») -->
@@ -790,6 +443,26 @@ async function renderTransferScreen(order) {
       }
     });
 
+    // Drag-and-drop чека
+    const dropzone = document.getElementById("receiptDropzone");
+    if (dropzone) {
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = "var(--fg)";
+      });
+      dropzone.addEventListener("dragleave", () => {
+        dropzone.style.borderColor = "var(--line)";
+      });
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = "var(--line)";
+        const file = e.dataTransfer?.files?.[0];
+        if (file && file.type.startsWith("image/")) {
+          setReceiptFile(file);
+        }
+      });
+    }
+
     // Отправка формы «Я оплатил»
     const confirmForm = document.getElementById("transferConfirmForm");
     confirmForm?.addEventListener("submit", async (e) => {
@@ -841,8 +514,14 @@ function renderTransferSuccessScreen(order) {
         Номер заказа: <strong>${escapeHtml(order.id)}</strong><br>
         Сумма: <strong>${formatPrice(order.total)}</strong>
       </p>
+
+      <!-- Важная информация мелким красным шрифтом -->
+      <div style="margin: 10px 0 14px; padding: 10px 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; font-size: 11.5px; line-height: 1.45; color: #ef4444; text-align: left;">
+        ⚠️ <b>Напоминание о доставке:</b> Доставка не входила в оплаченную сумму и оплачивается покупателем отдельно курьеру на руки либо через сервис <b>Yandex Go</b> при вручении посылки.
+      </div>
+
       <p style="color: var(--muted); font-size: 13.5px; line-height: 1.45;">
-        Менеджер FCKIT сверит перевод в течение 5–10 минут. Вы получите уведомление об успешном зачислении в Telegram-боте, и посылка будет сразу отправлена в сборку.
+        Менеджер FCKIT сверит перевод в течение 5–10 минут. Вы получите уведомление в Telegram-боте, и посылка будет сразу передана в службу отправки.
       </p>
       ${attachReceiptWidgetMarkup(order)}
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 22px;">
