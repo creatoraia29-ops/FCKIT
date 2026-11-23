@@ -15,8 +15,13 @@ function shelfCard(item) {
         <h3 class="card__title">${escapeHtml(item.title)}</h3>
         ${priceMarkup(item)}
       </div>
-      ${typeof sizePickerMarkup === "function" ? sizePickerMarkup(item.id, "M", "shelf-") : ""}
-      <button type="button" class="btn btn-primary" data-add="${item.id}" data-size="M" style="width: 100%; min-height: 38px; margin-top: 6px;">В корзину</button>
+      <div class="card__actions">
+        ${typeof sizePickerMarkup === "function" ? sizePickerMarkup(item.id, "M", "shelf-") : ""}
+        <button type="button" class="btn btn-primary btn-add-cart" data-add="${item.id}" data-size="M">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          <span>В корзину</span>
+        </button>
+      </div>
     </article>`;
 }
 
@@ -31,8 +36,13 @@ function featureCard(item) {
         <h3 class="feature-hit__title">${escapeHtml(item.title)}</h3>
         <p class="feature-hit__text">${escapeHtml(item.text || "")}</p>
         ${priceMarkup(item, "preview__price")}
-        ${typeof sizePickerMarkup === "function" ? sizePickerMarkup(item.id, "M", "feat-") : ""}
-        <button type="button" class="btn btn-primary" data-add="${item.id}" data-size="M" style="width: 100%; min-height: 44px; font-size: 15px; margin-top: 8px;">В корзину</button>
+        <div class="preview__actions">
+          ${typeof sizePickerMarkup === "function" ? sizePickerMarkup(item.id, "M", "feat-") : ""}
+          <button type="button" class="btn btn-primary btn-add-cart" data-add="${item.id}" data-size="M" style="min-height: 44px; font-size: 14.5px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            <span>В корзину (M)</span>
+          </button>
+        </div>
       </div>
     </article>`;
 }
@@ -54,7 +64,13 @@ if (home) {
         picker.querySelectorAll(".size-btn").forEach((b) => b.classList.toggle("is-active", b === sizeBtn));
       }
       const addBtn = container?.querySelector("[data-add]");
-      if (addBtn) addBtn.dataset.size = size;
+      if (addBtn) {
+        addBtn.dataset.size = size;
+        const labelSpan = addBtn.querySelector("span");
+        if (labelSpan && container?.classList.contains("feature-hit")) {
+          labelSpan.textContent = `В корзину (${size})`;
+        }
+      }
       return;
     }
 
@@ -65,10 +81,13 @@ if (home) {
     const size = button.dataset.size || "M";
     addToCart(id, size);
     if (typeof flyBallToCart === "function") flyBallToCart(button);
-    button.textContent = `Добавлено (${size})`;
+    const originalHtml = button.innerHTML;
+    button.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <span>Добавлено (${size})</span>`;
     window.clearTimeout(addedTimer);
     addedTimer = window.setTimeout(() => {
-      if (button.isConnected) button.textContent = "В корзину";
+      if (button.isConnected) button.innerHTML = originalHtml;
     }, 1200);
   });
 }

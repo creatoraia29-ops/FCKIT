@@ -17,8 +17,9 @@ function lineMarkup(row) {
       <div class="cart-item__body">
         <p class="card__cat">${DEPARTMENT_TITLES[item.department]} · ${SECTION_TITLES[item.section]}</p>
         <h3 class="cart-item__title">${item.title}</h3>
-        <p style="margin: 3px 0 6px; font-size: 13px; color: var(--muted);">
-          Размер: <span class="badge-tag" style="background: rgba(255,255,255,0.08); border: 1px solid var(--line); padding: 2px 8px; border-radius: 4px; font-weight: 700; color: var(--fg);">${escapeHtml(curSize)}</span>
+        <p style="margin: 3px 0 6px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+          <span>Размер:</span>
+          <span class="cart-size-pill">${escapeHtml(curSize)}</span>
         </p>
         <p class="card__price">${formatPrice(itemPrice(item))}</p>
       </div>
@@ -84,13 +85,14 @@ function checkoutMarkup(total) {
       </div>
 
       <!-- Важная информация перед оплатой мелким красным шрифтом -->
-      <div class="cart-important-warning" style="margin: 14px 0 8px; padding: 12px 14px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; font-size: 11.5px; line-height: 1.55; color: #ef4444;">
-        <div style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-          <span>⚠️</span> ВАЖНАЯ ИНФОРМАЦИЯ О ДОСТАВКЕ И ОПЛАТЕ:
+      <div class="cart-important-warning">
+        <div class="warning-head">
+          <svg class="warning-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>Важная информация о доставке и оплате</span>
         </div>
-        <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px;">
-          <li><b>Доставка до вас не входит в цену товара</b> и оплачивается покупателем отдельно при вручении курьеру на руки либо через сервис <b>Yandex Go</b>.</li>
-          <li>Срок экспресс-доставки из Китая в города Узбекистана составляет <b>7–10 рабочих дней</b> с предоставлением трек-номера.</li>
+        <ul class="warning-list">
+          <li><strong>Доставка до вас не входит в цену товара</strong> и оплачивается покупателем отдельно при вручении курьеру на руки либо через сервис <strong>Yandex Go</strong>.</li>
+          <li>Срок экспресс-доставки из Китая в города Узбекистана составляет <strong>7–10 рабочих дней</strong> с предоставлением трек-номера.</li>
           <li>После оплаты обязательно прикрепите фото или скриншот чека из галереи телефона для быстрой сборки и передачи посылки в логистику.</li>
         </ul>
       </div>
@@ -120,9 +122,10 @@ function renderCart() {
     <div class="cart-summary">
       <div>
         <p class="cart-total" style="margin: 0;">Итого: <strong>${formatPrice(total)}</strong></p>
-        <span style="color: #ef4444; font-size: 11.5px; font-weight: 500; display: block; margin-top: 3px;">
-          * Доставка не входит в итоговую цену и оплачивается отдельно при получении (курьеру / Yandex Go)
-        </span>
+        <div class="delivery-notice-pill">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          <span>Доставка оплачивается отдельно при вручении (курьеру / Yandex Go)</span>
+        </div>
       </div>
       <button type="button" class="btn" data-cart-action="clear">Очистить</button>
     </div>
@@ -310,14 +313,20 @@ async function renderTransferScreen(order, method = "transfer") {
         </div>
 
         <!-- Важная информация красным мелким шрифтом -->
-        <div class="cart-important-warning" style="margin: 4px 0 12px; padding: 10px 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 8px; font-size: 11.5px; line-height: 1.45; color: #ef4444;">
-          ⚠️ <b>Внимание:</b> Стоимость доставки <b>не входит</b> в эту сумму. Доставка оплачивается покупателем отдельно при получении на руки курьеру либо через сервис <b>Yandex Go</b>.
+        <div class="cart-important-warning cart-important-warning--compact">
+          <div class="warning-head">
+            <svg class="warning-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>Стоимость доставки не включена</span>
+          </div>
+          <p class="warning-text">
+            Стоимость доставки <strong>не входит</strong> в эту сумму и оплачивается отдельно при вручении курьеру на руки либо через сервис <strong>Yandex Go</strong>.
+          </p>
         </div>
 
         <!-- Быстрая оплата в местных приложениях -->
-        <div class="local-apps-box" style="padding: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px;">
-          <div style="font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 8px;">
-            Оплата через мобильные приложения:
+        <div class="local-apps-box" style="margin-bottom: 12px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px;">
+            Быстрый переход в приложение для оплаты:
           </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
             ${data.clickUrl ? `<a href="${data.clickUrl}" target="_blank" rel="noopener" class="btn" style="background: #0073ff; color: #fff; font-weight: 600; text-align: center; border-color: #0073ff;">🔵 Click Pay</a>` : `<a href="https://my.click.uz/" target="_blank" rel="noopener" class="btn" style="background: rgba(0, 115, 255, 0.12); color: #0073ff; border: 1px solid rgba(0, 115, 255, 0.4); font-weight: 600; text-align: center;">🔵 Открыть Click</a>`}
