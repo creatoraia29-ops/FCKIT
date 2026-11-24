@@ -47,9 +47,13 @@ function featureCard(item) {
     </article>`;
 }
 
-const featured = PRODUCTS.find((item) => item.hit && item.image) || PRODUCTS.find((item) => item.hit) || PRODUCTS[0];
-if (hitBoard && featured) hitBoard.innerHTML = featureCard(featured);
-if (dealBoard) dealBoard.innerHTML = PRODUCTS.filter((item) => item.sale).map(shelfCard).join("");
+function renderHomeShowcase() {
+  const featured = PRODUCTS.find((item) => item.hit && item.image) || PRODUCTS.find((item) => item.hit) || PRODUCTS[0];
+  if (hitBoard) hitBoard.innerHTML = featured ? featureCard(featured) : "";
+  if (dealBoard) dealBoard.innerHTML = PRODUCTS.filter((item) => item.sale).map(shelfCard).join("");
+}
+renderHomeShowcase();
+window.addEventListener("fckit:products-updated", renderHomeShowcase);
 
 if (home) {
   home.addEventListener("click", (event) => {

@@ -191,3 +191,7 @@ preview.addEventListener("click", (event) => {
 
 bindBoardEvents();
 renderProducts();
+
+window.addEventListener("fckit:products-updated", () => {
+  renderProducts();
+});

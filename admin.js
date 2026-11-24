@@ -423,14 +423,18 @@ if (adminProductSearch) {
   });
 }
 
-btnSaveShowcase.addEventListener("click", () => {
+btnSaveShowcase.addEventListener("click", async () => {
   const chosenHitId = Number(showcaseHitSelect.value);
   PRODUCTS.forEach((p) => {
     p.hit = p.id === chosenHitId;
   });
-  saveProducts(PRODUCTS);
-  renderProductsTab();
-  alert("Витрина успешно сохранена! Хит продаж обновлён на главной странице.");
+  try {
+    await saveProducts(PRODUCTS);
+    renderProductsTab();
+    alert("Витрина успешно сохранена! Хит продаж обновлён на главной странице.");
+  } catch (err) {
+    alert("Не удалось сохранить витрину: " + err.message);
+  }
 });
 
 btnNewProduct.addEventListener("click", () => {
@@ -451,7 +455,7 @@ btnNewProduct.addEventListener("click", () => {
 
 btnModalCancel.addEventListener("click", () => productModal.close());
 
-productEditForm.addEventListener("submit", (e) => {
+productEditForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const idVal = editId.value ? Number(editId.value) : Date.now();
   const priceVal = Number(editPrice.value) || 0;
@@ -497,13 +501,17 @@ productEditForm.addEventListener("submit", (e) => {
     PRODUCTS.unshift(updatedItem);
   }
 
-  saveProducts(PRODUCTS);
   productModal.close();
-  renderProductsTab();
-  if (currentTab === "pricing") renderPricingTab();
+  try {
+    await saveProducts(PRODUCTS);
+    renderProductsTab();
+    if (currentTab === "pricing") renderPricingTab();
+  } catch (err) {
+    alert("Ошибка сохранения товара на сервере: " + err.message);
+  }
 });
 
-productsTableBody.addEventListener("click", (e) => {
+productsTableBody.addEventListener("click", async (e) => {
   const editBtn = e.target.closest("[data-edit-id]");
   if (editBtn) {
     const id = Number(editBtn.dataset.editId);
@@ -530,9 +538,17 @@ productsTableBody.addEventListener("click", (e) => {
   if (delBtn) {
     const id = Number(delBtn.dataset.deleteId);
     if (confirm("Вы уверены, что хотите удалить этот товар из магазина?")) {
+      const prevList = [...PRODUCTS];
       PRODUCTS = PRODUCTS.filter((p) => p.id !== id);
-      saveProducts(PRODUCTS);
-      renderProductsTab();
+      try {
+        await saveProducts(PRODUCTS);
+        renderProductsTab();
+        if (currentTab === "pricing") renderPricingTab();
+      } catch (err) {
+        PRODUCTS = prevList;
+        renderProductsTab();
+        alert("Ошибка удаления товара на сервере: " + err.message);
+      }
     }
   }
 });
@@ -649,7 +665,7 @@ function updateLivePreview() {
   priceConfigForm.addEventListener(evt, updateLivePreview);
 });
 
-priceConfigForm.addEventListener("submit", (e) => {
+priceConfigForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!selectedProductForPrice) return;
 
@@ -683,8 +699,12 @@ priceConfigForm.addEventListener("submit", (e) => {
       badgeText: badge,
       accentColor: accent,
     };
-    saveProducts(PRODUCTS);
-    alert(`Ценник для товара #${PRODUCTS[index].id} «${PRODUCTS[index].title}» успешно обновлён!`);
+    try {
+      await saveProducts(PRODUCTS);
+      alert(`Ценник для товара #${PRODUCTS[index].id} «${PRODUCTS[index].title}» успешно обновлён!`);
+    } catch (err) {
+      alert("Ошибка сохранения ценника: " + err.message);
+    }
   }
 });
 
@@ -730,7 +750,7 @@ function renderPromosTab() {
   }).join("");
 }
 
-promoForm.addEventListener("submit", (e) => {
+promoForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const s = promoStart.value;
   const eVal = promoEnd.value;
@@ -753,20 +773,32 @@ promoForm.addEventListener("submit", (e) => {
   };
 
   PROMOTIONS.unshift(newPromo);
-  savePromos(PROMOTIONS);
-  promoForm.reset();
-  renderPromosTab();
-  alert("Маркетинговая акция успешно сохранена и запущена!");
+  try {
+    await savePromos(PROMOTIONS);
+    promoForm.reset();
+    renderPromosTab();
+    alert("Маркетинговая акция успешно сохранена и запущена!");
+  } catch (err) {
+    PROMOTIONS.shift();
+    alert("Ошибка сохранения акции: " + err.message);
+  }
 });
 
-promosTableBody.addEventListener("click", (e) => {
+promosTableBody.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-delete-promo]");
   if (btn) {
     const id = btn.dataset.deletePromo;
     if (confirm("Удалить акцию?")) {
+      const prev = [...PROMOTIONS];
       PROMOTIONS = PROMOTIONS.filter((p) => p.id !== id);
-      savePromos(PROMOTIONS);
-      renderPromosTab();
+      try {
+        await savePromos(PROMOTIONS);
+        renderPromosTab();
+      } catch (err) {
+        PROMOTIONS = prev;
+        renderPromosTab();
+        alert("Ошибка удаления акции: " + err.message);
+      }
     }
   }
 });

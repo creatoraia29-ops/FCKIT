@@ -146,3 +146,8 @@ searchInput.form?.addEventListener("submit", (event) => {
 });
 
 renderCatalogGrid();
+
+window.addEventListener("fckit:products-updated", () => {
+  renderCatalogGrid();
+  if (searchInput && searchInput.value.trim()) renderSearch();
+});

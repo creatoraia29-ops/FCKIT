@@ -1749,13 +1749,19 @@ async function handleRequestInternal(req, res) {
     return;
   }
 
-  if (req.method === "GET" && req.url === "/api/products") {
+  const reqPath = (req.url || "").split("?")[0];
+
+  if (req.method === "GET" && (reqPath === "/api/products" || req.url === "/api/products")) {
     const list = await dbGetProducts();
-    json(res, 200, list, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" }, req);
+    json(res, 200, list, {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    }, req);
     return;
   }
 
-  if (req.method === "POST" && req.url === "/api/products") {
+  if (req.method === "POST" && (reqPath === "/api/products" || req.url === "/api/products")) {
     if (!isAuthorizedAdminRequest(req)) {
       json(res, 401, { error: "Доступ запрещён: требуется пароль администратора." }, {}, req);
       return;
@@ -1767,20 +1773,30 @@ async function handleRequestInternal(req, res) {
         return;
       }
       await dbSaveProducts(list);
-      json(res, 200, { ok: true, count: list.length }, {}, req);
+      json(res, 200, {
+        ok: true,
+        count: list.length,
+        updatedAt: Date.now(),
+      }, {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      }, req);
     } catch (err) {
       json(res, 500, { error: "Не удалось сохранить товары: " + err.message }, {}, req);
     }
     return;
   }
 
-  if (req.method === "GET" && req.url === "/api/promotions") {
+  if (req.method === "GET" && (reqPath === "/api/promotions" || req.url === "/api/promotions")) {
     const list = await dbGetPromotions();
-    json(res, 200, list, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" }, req);
+    json(res, 200, list, {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    }, req);
     return;
   }
 
-  if (req.method === "POST" && req.url === "/api/promotions") {
+  if (req.method === "POST" && (reqPath === "/api/promotions" || req.url === "/api/promotions")) {
     if (!isAuthorizedAdminRequest(req)) {
       json(res, 401, { error: "Доступ запрещён: требуется пароль администратора." }, {}, req);
       return;
@@ -1792,7 +1808,13 @@ async function handleRequestInternal(req, res) {
         return;
       }
       await dbSavePromotions(list);
-      json(res, 200, { ok: true, count: list.length }, {}, req);
+      json(res, 200, {
+        ok: true,
+        count: list.length,
+        updatedAt: Date.now(),
+      }, {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      }, req);
     } catch (err) {
       json(res, 500, { error: "Не удалось сохранить акции: " + err.message }, {}, req);
     }

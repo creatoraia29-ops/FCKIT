@@ -170,37 +170,37 @@ async function dbGetProducts() {
   if (db) {
     try {
       const res = await db.execute("SELECT * FROM products ORDER BY id ASC");
-      if (res.rows.length) {
-        const mapped = res.rows.map((row) => ({
-          id: Number(row.id),
-          title: row.title,
-          department: row.department,
-          section: row.section,
-          price: Number(row.price),
-          sale: row.sale ? Number(row.sale) : null,
-          image: row.image,
-          shade: row.shade,
-          text: row.text,
-          hit: Boolean(row.hit),
-          installmentMonths: Number(row.installmentMonths || 4),
-          weightGram: row.weightGram ? Number(row.weightGram) : null,
-          tiers: row.tiers ? JSON.parse(row.tiers) : null,
-          tagStyle: row.tagStyle ? JSON.parse(row.tagStyle) : null,
-        }));
-        cachedProducts = mapped;
-        cachedProductsExpiresAt = Date.now() + PRODUCTS_CACHE_TTL_MS;
-        return mapped;
-      }
+      const mapped = (res.rows || []).map((row) => ({
+        id: Number(row.id),
+        title: row.title,
+        department: row.department,
+        section: row.section,
+        price: Number(row.price),
+        sale: row.sale ? Number(row.sale) : null,
+        image: row.image,
+        shade: row.shade,
+        text: row.text,
+        hit: Boolean(row.hit),
+        installmentMonths: Number(row.installmentMonths || 4),
+        weightGram: row.weightGram ? Number(row.weightGram) : null,
+        tiers: row.tiers ? JSON.parse(row.tiers) : null,
+        tagStyle: row.tagStyle ? JSON.parse(row.tagStyle) : null,
+      }));
+      cachedProducts = mapped;
+      cachedProductsExpiresAt = Date.now() + PRODUCTS_CACHE_TTL_MS;
+      return mapped;
     } catch (e) {
       console.error("Turso read error:", e.message);
     }
   }
   const pfile = path.join(ROOT, "products.json");
   if (fs.existsSync(pfile)) {
-    const fromJson = JSON.parse(fs.readFileSync(pfile, "utf8"));
-    cachedProducts = fromJson;
-    cachedProductsExpiresAt = Date.now() + PRODUCTS_CACHE_TTL_MS;
-    return fromJson;
+    try {
+      const fromJson = JSON.parse(fs.readFileSync(pfile, "utf8"));
+      cachedProducts = fromJson;
+      cachedProductsExpiresAt = Date.now() + PRODUCTS_CACHE_TTL_MS;
+      return fromJson;
+    } catch {}
   }
   return [];
 }

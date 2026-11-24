@@ -64,19 +64,35 @@ function getAdminAuthHeader() {
   }
 }
 
-function saveProducts(list) {
+async function saveProducts(list) {
   PRODUCTS = list;
   try {
     localStorage.setItem(PRODUCTS_KEY, JSON.stringify(list));
   } catch {}
-  return fetch(apiEndpoint("/api/products"), {
+
+  // Оповещаем активные скрипты на текущей вкладке
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("fckit:products-updated", { detail: list }));
+  }
+
+  const res = await fetch(apiEndpoint("/api/products?_t=" + Date.now()), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-cache",
       ...getAdminAuthHeader(),
     },
     body: JSON.stringify(list),
-  }).catch(() => {});
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    const msg = errData.error || `Ошибка сервера: HTTP ${res.status}`;
+    console.error("Save products failed:", msg);
+    throw new Error(msg);
+  }
+
+  return await res.json().catch(() => ({ ok: true }));
 }
 
 function getStoredPromos() {
@@ -89,50 +105,100 @@ function getStoredPromos() {
 
 let PROMOTIONS = getStoredPromos();
 
-function savePromos(list) {
+async function savePromos(list) {
   PROMOTIONS = list;
   try {
     localStorage.setItem(PROMOS_KEY, JSON.stringify(list));
   } catch {}
-  return fetch(apiEndpoint("/api/promotions"), {
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("fckit:promotions-updated", { detail: list }));
+  }
+
+  const res = await fetch(apiEndpoint("/api/promotions?_t=" + Date.now()), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-cache",
       ...getAdminAuthHeader(),
     },
     body: JSON.stringify(list),
-  }).catch(() => {});
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    const msg = errData.error || `Ошибка сервера: HTTP ${res.status}`;
+    console.error("Save promotions failed:", msg);
+    throw new Error(msg);
+  }
+
+  return await res.json().catch(() => ({ ok: true }));
 }
 
-function syncFromServer() {
-  fetch(apiEndpoint("/api/products"))
-    .then((r) => r.json())
-    .then((list) => {
-      if (Array.isArray(list) && list.length) {
-        const existingIds = new Set(list.map((p) => Number(p.id)));
-        const merged = [...list];
-        for (const initP of INITIAL_PRODUCTS) {
-          if (!existingIds.has(Number(initP.id))) {
-            merged.push(initP);
-          }
+async function syncFromServer() {
+  try {
+    const res = await fetch(apiEndpoint("/api/products?_t=" + Date.now()), {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+    });
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list) && list.length > 0) {
+        const prevJson = localStorage.getItem(PRODUCTS_KEY);
+        const newJson = JSON.stringify(list);
+        PRODUCTS = list;
+        try {
+          localStorage.setItem(PRODUCTS_KEY, newJson);
+        } catch {}
+        if (prevJson !== newJson && typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("fckit:products-updated", { detail: list }));
         }
-        PRODUCTS = merged;
-        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(merged));
       }
-    })
-    .catch(() => {});
+    }
+  } catch (err) {
+    console.warn("syncFromServer error:", err);
+  }
 
-  fetch(apiEndpoint("/api/promotions"))
-    .then((r) => r.json())
-    .then((list) => {
+  try {
+    const res = await fetch(apiEndpoint("/api/promotions?_t=" + Date.now()), {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+    });
+    if (res.ok) {
+      const list = await res.json();
       if (Array.isArray(list)) {
+        const prevJson = localStorage.getItem(PROMOS_KEY);
+        const newJson = JSON.stringify(list);
         PROMOTIONS = list;
-        localStorage.setItem(PROMOS_KEY, JSON.stringify(list));
+        try {
+          localStorage.setItem(PROMOS_KEY, newJson);
+        } catch {}
+        if (prevJson !== newJson && typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("fckit:promotions-updated", { detail: list }));
+        }
       }
-    })
-    .catch(() => {});
+    }
+  } catch {}
 }
-if (typeof window !== "undefined") syncFromServer();
+
+if (typeof window !== "undefined") {
+  syncFromServer();
+  window.addEventListener("focus", () => syncFromServer());
+  window.addEventListener("storage", (event) => {
+    if (event.key === PRODUCTS_KEY && event.newValue) {
+      try {
+        PRODUCTS = JSON.parse(event.newValue);
+        window.dispatchEvent(new CustomEvent("fckit:products-updated", { detail: PRODUCTS }));
+      } catch {}
+    }
+    if (event.key === PROMOS_KEY && event.newValue) {
+      try {
+        PROMOTIONS = JSON.parse(event.newValue);
+        window.dispatchEvent(new CustomEvent("fckit:promotions-updated", { detail: PROMOTIONS }));
+      } catch {}
+    }
+  });
+}
 
 function formatPrice(value) {
   return `${new Intl.NumberFormat("ru-RU").format(value)} сум`;
