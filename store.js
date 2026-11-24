@@ -56,12 +56,14 @@ function apiEndpoint(path) {
 }
 
 function getAdminAuthHeader() {
+  const headers = {};
   try {
-    const token = sessionStorage.getItem("fckit-admin-token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch {
-    return {};
-  }
+    const token = sessionStorage.getItem("fckit-admin-token") || localStorage.getItem("fckit-admin-token");
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const pass = sessionStorage.getItem("fckit-admin-password") || localStorage.getItem("fckit-admin-password");
+    if (pass) headers["X-Admin-Password"] = pass;
+  } catch {}
+  return headers;
 }
 
 async function saveProducts(list) {
@@ -77,9 +79,9 @@ async function saveProducts(list) {
 
   const res = await fetch(apiEndpoint("/api/products?_t=" + Date.now()), {
     method: "POST",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
-      "Cache-Control": "no-cache",
       ...getAdminAuthHeader(),
     },
     body: JSON.stringify(list),
@@ -117,9 +119,9 @@ async function savePromos(list) {
 
   const res = await fetch(apiEndpoint("/api/promotions?_t=" + Date.now()), {
     method: "POST",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
-      "Cache-Control": "no-cache",
       ...getAdminAuthHeader(),
     },
     body: JSON.stringify(list),
@@ -139,7 +141,6 @@ async function syncFromServer() {
   try {
     const res = await fetch(apiEndpoint("/api/products?_t=" + Date.now()), {
       cache: "no-store",
-      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
     });
     if (res.ok) {
       const list = await res.json();
@@ -162,7 +163,6 @@ async function syncFromServer() {
   try {
     const res = await fetch(apiEndpoint("/api/promotions?_t=" + Date.now()), {
       cache: "no-store",
-      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
     });
     if (res.ok) {
       const list = await res.json();

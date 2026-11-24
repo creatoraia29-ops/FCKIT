@@ -537,9 +537,11 @@ productsTableBody.addEventListener("click", async (e) => {
   const delBtn = e.target.closest("[data-delete-id]");
   if (delBtn) {
     const id = Number(delBtn.dataset.deleteId);
-    if (confirm("Вы уверены, что хотите удалить этот товар из магазина?")) {
+    const item = PRODUCTS.find((p) => Number(p.id) === id);
+    const itemTitle = item ? `«${item.title}»` : `#${id}`;
+    if (confirm(`Вы уверены, что хотите удалить товар ${itemTitle} из магазина?`)) {
       const prevList = [...PRODUCTS];
-      PRODUCTS = PRODUCTS.filter((p) => p.id !== id);
+      PRODUCTS = PRODUCTS.filter((p) => Number(p.id) !== id);
       try {
         await saveProducts(PRODUCTS);
         renderProductsTab();
@@ -547,7 +549,12 @@ productsTableBody.addEventListener("click", async (e) => {
       } catch (err) {
         PRODUCTS = prevList;
         renderProductsTab();
-        alert("Ошибка удаления товара на сервере: " + err.message);
+        if (err.message && err.message.includes("401")) {
+          alert("Сессия администратора истекла. Пожалуйста, выполните вход в панель заново.");
+          showLock();
+        } else {
+          alert("Не удалось удалить товар на сервере: " + (err.message || "Ошибка соединения"));
+        }
       }
     }
   }
@@ -829,8 +836,13 @@ loginForm.addEventListener("submit", async (event) => {
       return;
     }
 
-    sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token);
+    sessionStorage.setItem(ADMIN_TOKEN_KEY, data.token || "");
+    sessionStorage.setItem("fckit-admin-password", password);
     sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+    try {
+      localStorage.setItem(ADMIN_TOKEN_KEY, data.token || "");
+      localStorage.setItem("fckit-admin-password", password);
+    } catch {}
     loginError.hidden = true;
     loginForm.reset();
     showApp();
@@ -845,6 +857,11 @@ loginForm.addEventListener("submit", async (event) => {
 logoutBtn.addEventListener("click", () => {
   sessionStorage.removeItem(ADMIN_SESSION_KEY);
   sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  sessionStorage.removeItem("fckit-admin-password");
+  try {
+    localStorage.removeItem(ADMIN_TOKEN_KEY);
+    localStorage.removeItem("fckit-admin-password");
+  } catch {}
   showLock();
   loginForm.password.focus();
 });
