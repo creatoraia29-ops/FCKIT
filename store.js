@@ -11,6 +11,7 @@ const SECTION_TITLES = {
 const DEPARTMENT_TITLES = {
   men: "Мужской",
   women: "Женский",
+  unisex: "Унисекс",
 };
 
 const PRODUCTS_KEY = "fckit-products";

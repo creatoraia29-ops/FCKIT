@@ -227,6 +227,13 @@ const productsCountEl = document.getElementById("productsCount");
 const showcaseHitSelect = document.getElementById("showcaseHitSelect");
 const btnSaveShowcase = document.getElementById("btnSaveShowcase");
 const btnNewProduct = document.getElementById("btnNewProduct");
+const adminDeptFilter = document.getElementById("adminDeptFilter");
+const adminSectionFilter = document.getElementById("adminSectionFilter");
+const adminProductSearch = document.getElementById("adminProductSearch");
+
+let adminActiveDept = "all";
+let adminActiveSection = "all";
+let adminSearchQuery = "";
 
 // Модальное окно
 const productModal = document.getElementById("productModal");
@@ -325,17 +332,40 @@ editImage?.addEventListener("input", () => {
 });
 
 function renderProductsTab() {
-  productsCountEl.textContent = PRODUCTS.length;
+  const filteredList = PRODUCTS.filter((item) => {
+    if (adminActiveDept !== "all" && item.department !== adminActiveDept) return false;
+    if (adminActiveSection !== "all" && item.section !== adminActiveSection) return false;
+    if (adminSearchQuery) {
+      const q = adminSearchQuery.toLowerCase();
+      const hay = `${item.id} ${item.title} ${DEPARTMENT_TITLES[item.department] || ""} ${SECTION_TITLES[item.section] || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  productsCountEl.textContent = (filteredList.length === PRODUCTS.length)
+    ? PRODUCTS.length
+    : `${filteredList.length} из ${PRODUCTS.length}`;
 
   // Селект хита продаж
   showcaseHitSelect.innerHTML = PRODUCTS.map((item) => `
     <option value="${item.id}" ${item.hit ? "selected" : ""}>
-      #${item.id} · ${escapeHtml(item.title)} (${formatPrice(itemPrice(item))})
+      #${item.id} · ${escapeHtml(item.title)} [${DEPARTMENT_TITLES[item.department] || item.department}] (${formatPrice(itemPrice(item))})
     </option>
   `).join("");
 
   // Таблица товаров
-  productsTableBody.innerHTML = PRODUCTS.map((item) => {
+  if (!filteredList.length) {
+    productsTableBody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; padding: 28px; color: var(--muted);">
+          Товары по выбранным фильтрам не найдены
+        </td>
+      </tr>`;
+    return;
+  }
+
+  productsTableBody.innerHTML = filteredList.map((item) => {
     const thumbHtml = item.image
       ? `<img src="${item.image}" alt="" class="admin-table-thumb" />`
       : `<div class="admin-table-thumb-empty" style="background:${item.shade || "#222"}">FCKIT</div>`;
@@ -363,6 +393,34 @@ function renderProductsTab() {
       </tr>
     `;
   }).join("");
+}
+
+if (adminDeptFilter) {
+  adminDeptFilter.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-admin-dept]");
+    if (!btn) return;
+    adminActiveDept = btn.dataset.adminDept;
+    adminDeptFilter.querySelectorAll("[data-admin-dept]").forEach((b) => b.classList.toggle("is-active", b === btn));
+    renderProductsTab();
+  });
+}
+
+if (adminSectionFilter) {
+  adminSectionFilter.addEventListener("change", () => {
+    adminActiveSection = adminSectionFilter.value;
+    renderProductsTab();
+  });
+}
+
+if (adminProductSearch) {
+  let searchTimer = null;
+  adminProductSearch.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      adminSearchQuery = adminProductSearch.value.trim();
+      renderProductsTab();
+    }, 120);
+  });
 }
 
 btnSaveShowcase.addEventListener("click", () => {
@@ -501,7 +559,7 @@ let selectedProductForPrice = null;
 function renderPricingTab() {
   priceProductSelect.innerHTML = PRODUCTS.map((item) => `
     <option value="${item.id}" ${selectedProductForPrice && selectedProductForPrice.id === item.id ? "selected" : ""}>
-      #${item.id} · ${escapeHtml(item.title)}
+      #${item.id} · ${escapeHtml(item.title)} [${DEPARTMENT_TITLES[item.department] || item.department}]
     </option>
   `).join("");
 

@@ -495,7 +495,8 @@ async function notifyTelegramOrder(order) {
 
   const itemsList = (order.items || [])
     .map((item, i) => {
-      const dept = item.department === "men" ? "Мужской" : "Женский";
+      const deptMap = { men: "Мужской", women: "Женский", unisex: "Унисекс" };
+      const dept = deptMap[item.department] || (item.department === "men" ? "Мужской" : (item.department === "women" ? "Женский" : "Унисекс"));
       const totalItem = formatSum(item.price * item.qty);
       const sizeStr = item.size ? ` | <b>Размер: ${escapeTg(item.size)}</b>` : "";
       return `${i + 1}. <b>${escapeTg(item.title)}</b>${sizeStr}\n   ▫️ ${item.qty} шт. × ${formatSum(item.price)} = <b>${totalItem}</b>\n   ▫️ <i>${dept} · ${escapeTg(item.section || "")}</i>`;
@@ -1136,11 +1137,13 @@ function loadProducts() {
 }
 
 function catalogText() {
+  const deptMap = { men: "мужской", women: "женский", unisex: "унисекс" };
   return loadProducts()
     .map((item) => {
       const price = item.sale ?? item.price;
       const sale = item.sale ? `, скидка с ${item.price}` : "";
-      return `#${item.id} | ${item.department === "men" ? "мужской" : "женский"} | ${item.section} | ${item.title} | ${price} сум${sale} | ${item.text}`;
+      const dept = deptMap[item.department] || item.department;
+      return `#${item.id} | ${dept} | ${item.section} | ${item.title} | ${price} сум${sale} | ${item.text}`;
     })
     .join("\n");
 }
@@ -1148,7 +1151,7 @@ function catalogText() {
 function systemPrompt() {
   return `Ты стилист интернет-магазина FCKIT. Отвечай только по-русски, коротко и спокойно.
 
-FCKIT заказывает одежду напрямую из Китая, без своего производства. Есть мужская и женская линии: головные уборы, верх, низ, обувь. Цены в сумах. Доставка в любую точку Республики Узбекистан занимает 7–10 дней. Контакты: Instagram, Telegram. Заказ оформляется в корзине на сайте.
+FCKIT заказывает одежду напрямую из Китая, без своего производства. Есть мужская, женская и унисекс линии: головные уборы, верх, низ, обувь. Цены в сумах. Доставка в любую точку Республики Узбекистан занимает 7–10 дней. Контакты: Instagram, Telegram. Заказ оформляется в корзине на сайте.
 
 Каталог (рекомендуй только эти id):
 ${catalogText()}
