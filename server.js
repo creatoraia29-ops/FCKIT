@@ -4,7 +4,9 @@ const path = require("path");
 const zlib = require("zlib");
 const crypto = require("crypto");
 const {
+  initDatabase,
   initTurso,
+  isPostgres,
   dbGetProducts,
   dbSaveProducts,
   dbSaveOrder,
@@ -17,7 +19,15 @@ const {
   dbGetAuthorizedTelegramUsers,
   dbSaveAuthorizedTelegramUser,
   dbRemoveAuthorizedTelegramUser,
+  dbGetUsers,
+  dbSaveUser,
 } = require("./db.js");
+const {
+  BUCKET_NAME,
+  isStorageConfigured,
+  uploadToStorage,
+  downloadFromStorage,
+} = require("./storage.js");
 
 const ROOT = __dirname;
 const MODEL = "gemini-3.5-flash-lite";
@@ -1449,6 +1459,29 @@ function serveStatic(req, res) {
     const target = !err && stat.isDirectory() ? path.join(file, "index.html") : file;
     fs.readFile(target, (readErr, data) => {
       if (readErr) {
+        const rawUrl = (req.url || "").split("?")[0];
+        if (rawUrl.startsWith("/uploads/")) {
+          const storageKey = rawUrl.replace(/^\/uploads\//, "");
+          downloadFromStorage(storageKey).then((obj) => {
+            if (obj) {
+              setCorsHeaders(res, req);
+              res.writeHead(200, {
+                "Content-Type": obj.contentType,
+                "Content-Length": obj.buffer.length,
+                "Cache-Control": "public, max-age=604800, immutable",
+                ...getSecurityHeaders(),
+              });
+              res.end(obj.buffer);
+              return;
+            }
+            res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+            res.end("Not found");
+          }).catch(() => {
+            res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+            res.end("Not found");
+          });
+          return;
+        }
         res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
         res.end("Not found");
         return;
@@ -1589,9 +1622,15 @@ let dbInitialized = false;
 async function ensureDbInit() {
   if (dbInitialized) return;
   try {
-    await initTurso();
+    await initDatabase();
+    if (isPostgres()) {
+      console.log("Neon Postgres: активен (PostgreSQL 18)");
+    }
+    if (isStorageConfigured()) {
+      console.log(`Neon Object Storage: активен (bucket: ${BUCKET_NAME})`);
+    }
   } catch (err) {
-    console.error("ensureDbInit Turso error:", err.message);
+    console.error("ensureDbInit error:", err.message);
   }
   try {
     await loadAuthorizedTelegramUsers();
@@ -1818,6 +1857,38 @@ async function handleRequestInternal(req, res) {
     } catch (err) {
       json(res, 500, { error: "Не удалось сохранить акции: " + err.message }, {}, req);
     }
+    return;
+  }
+
+  // СПИСОК ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (ПОКУПАТЕЛИ И АДМИНИСТРАТОРЫ В NEON)
+  if (req.method === "GET" && (reqPath === "/api/users" || req.url === "/api/users")) {
+    if (!isAuthorizedAdminRequest(req)) {
+      json(res, 401, { error: "Доступ запрещён: требуется пароль администратора." }, {}, req);
+      return;
+    }
+    try {
+      const users = await dbGetUsers(100);
+      json(res, 200, users, { "Cache-Control": "no-store" }, req);
+    } catch (err) {
+      json(res, 500, { error: "Не удалось получить пользователей: " + err.message }, {}, req);
+    }
+    return;
+  }
+
+  // СТАТУС ПОДКЛЮЧЕНИЯ NEON СЕРВИСОВ
+  if (req.method === "GET" && (reqPath === "/api/neon/status" || req.url === "/api/neon/status")) {
+    json(res, 200, {
+      postgres: {
+        connected: isPostgres(),
+        engine: isPostgres() ? "Neon PostgreSQL 18" : "Turso / Local",
+      },
+      objectStorage: {
+        configured: isStorageConfigured(),
+        bucket: BUCKET_NAME,
+      },
+      branch: process.env.NEON_BRANCH || "production",
+      timestamp: new Date().toISOString(),
+    }, { "Cache-Control": "no-store" }, req);
     return;
   }
 
@@ -2130,6 +2201,13 @@ async function handleRequestInternal(req, res) {
             receiptPath = `/uploads/receipts/${filename}`;
           } catch (fsErr) {
             console.error("Receipt disk save error (proceeding with memory buffer):", fsErr.message);
+          }
+          // Сохраняем в Neon Object Storage
+          try {
+            await uploadToStorage(`receipts/${filename}`, receiptBuffer, `image/${ext === "jpg" ? "jpeg" : ext}`);
+            if (!receiptPath) receiptPath = `/uploads/receipts/${filename}`;
+          } catch (s3Err) {
+            console.error("Neon Object Storage receipt upload error:", s3Err.message);
           }
         }
       }

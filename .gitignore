@@ -11,3 +11,4 @@ telegram_authorized_users.json
 cloudflared.exe
 uploads/*
 !uploads/receipts/.gitkeep
+.neon
