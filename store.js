@@ -17,34 +17,24 @@ const DEPARTMENT_TITLES = {
 const PRODUCTS_KEY = "fckit-products";
 const PROMOS_KEY = "fckit-promos";
 
-const INITIAL_PRODUCTS = [
-  { id: 1, department: "men", section: "hats", title: "Шерстяная шапка Orbit", price: 154000, sale: 119000, shade: "#3A3A3A", text: "Плотная шерсть, спокойная посадка. На каждый день и на холодный вечер." },
-  { id: 2, department: "men", section: "hats", title: "Кепка Night Peak", price: 119000, sale: 89000, shade: "#1A1A1A", text: "Хлопковая кепка с жёстким козырьком. Держит форму и не бросается в глаза." },
-  { id: 3, department: "men", section: "tops", title: "Свитер Rib Knit", price: 284000, shade: "#111111", image: "img/sweater.jpg", text: "Чёрный ребристый свитер. Плотная вязка, прямой силуэт, без лишнего декора." },
-  { id: 4, department: "men", section: "tops", title: "Зип-худи Number Grid", price: 379000, hit: true, shade: "#2A2A3A", image: "img/hoodie.jpg", text: "Вареный зип-худи с капюшоном и принтом. Короткий крой, удобный на каждый день." },
-  { id: 5, department: "men", section: "bottoms", title: "Брюки Three Stripe", price: 320000, hit: true, shade: "#C8C8C8", image: "img/pants.jpg", text: "Свободные брюки с лампасами. Мягкая посадка, городской крой." },
-  { id: 6, department: "men", section: "bottoms", title: "Шорты Core Black", price: 213000, sale: 159000, shade: "#111111", image: "img/shorts.jpg", text: "Чёрные шорты на резинке. Спокойный крой, на лето и зал." },
-  { id: 7, department: "men", section: "shoes", title: "Кроссовки Mesh Runner", price: 474000, sale: 389000, hit: true, shade: "#E8E8E8", image: "img/sneakers-mesh.jpg", text: "Белые кроссовки с сеткой и воздушной подошвой. На каждый день." },
-  { id: 8, department: "men", section: "shoes", title: "Кеды Star Court", price: 426000, hit: true, shade: "#F2F2F2", image: "img/sneakers-star.jpg", text: "Кожаные кеды со звездой. Лёгкий винтажный вид, низкий ход." },
-  { id: 9, department: "women", section: "hats", title: "Берет Lilac", price: 166000, sale: 129000, shade: "#6E6E6E", text: "Мягкий берет, держит объём. Закрывает голову без давления." },
-  { id: 10, department: "women", section: "hats", title: "Панама Soft Glow", price: 142000, sale: 99000, shade: "#D8D8D8", text: "Лёгкая панама на сезон. Защищает от солнца и не мнётся в сумке." },
-  { id: 11, department: "women", section: "tops", title: "Свитер Rib Knit", price: 284000, hit: true, shade: "#111111", image: "img/sweater.jpg", text: "Чёрный ребристый свитер. Плотная вязка, прямой силуэт, без лишнего декора." },
-  { id: 12, department: "women", section: "tops", title: "Зип-худи Number Grid", price: 379000, shade: "#2A2A3A", image: "img/hoodie.jpg", text: "Вареный зип-худи с капюшоном и принтом. Короткий крой, удобный на каждый день." },
-  { id: 13, department: "women", section: "bottoms", title: "Брюки Three Stripe", price: 320000, sale: 249000, shade: "#C8C8C8", image: "img/pants.jpg", text: "Свободные брюки с лампасами. Мягкая посадка, городской крой." },
-  { id: 14, department: "women", section: "bottoms", title: "Шорты Core Black", price: 213000, shade: "#111111", image: "img/shorts.jpg", text: "Чёрные шорты на резинке. Спокойный крой, на лето и зал." },
-  { id: 15, department: "women", section: "shoes", title: "Кроссовки Mesh Runner", price: 474000, shade: "#E8E8E8", image: "img/sneakers-mesh.jpg", text: "Белые кроссовки с сеткой и воздушной подошвой. На каждый день." },
-  { id: 16, department: "women", section: "shoes", title: "Кеды Star Court", price: 426000, sale: 339000, shade: "#F2F2F2", image: "img/sneakers-star.jpg", text: "Кожаные кеды со звездой. Лёгкий винтажный вид, низкий ход." },
-];
+const INITIAL_PRODUCTS = [];
 
 function getStoredProducts() {
   try {
     const raw = localStorage.getItem(PRODUCTS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Удаляем устаревшие тестовые товары (добавленные до 23 ноября, id <= 100)
+        const cleaned = parsed.filter((p) => Number(p.id) >= 1700000000000);
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem(PRODUCTS_KEY, JSON.stringify(cleaned));
+        }
+        return cleaned;
+      }
     }
   } catch {}
-  return INITIAL_PRODUCTS;
+  return [];
 }
 
 let PRODUCTS = getStoredProducts();
