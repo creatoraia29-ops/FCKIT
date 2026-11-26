@@ -6,7 +6,8 @@
     "section": "hats",
     "price": 154000,
     "sale": 119000,
-    "image": null,
+    "image": "",
+    "images": [],
     "shade": "#3A3A3A",
     "text": "Плотная шерсть, спокойная посадка. На каждый день и на холодный вечер.",
     "hit": false,
@@ -22,7 +23,8 @@
     "section": "hats",
     "price": 119000,
     "sale": 100000,
-    "image": null,
+    "image": "",
+    "images": [],
     "shade": "#1A1A1A",
     "text": "Хлопковая кепка с жёстким козырьком. Держит форму и не бросается в глаза.",
     "hit": false,
@@ -39,6 +41,9 @@
     "price": 284000,
     "sale": null,
     "image": "img/sweater.jpg",
+    "images": [
+      "img/sweater.jpg"
+    ],
     "shade": "#111111",
     "text": "Чёрный ребристый свитер. Плотная вязка, прямой силуэт, без лишнего декора.",
     "hit": false,
@@ -55,6 +60,10 @@
     "price": 379000,
     "sale": null,
     "image": "img/hoodie.jpg",
+    "images": [
+      "img/hoodie.jpg",
+      "img/sweater.jpg"
+    ],
     "shade": "#2A2A3A",
     "text": "Вареный зип-худи с капюшоном и принтом. Короткий крой, удобный на каждый день.",
     "hit": false,
@@ -71,6 +80,9 @@
     "price": 320000,
     "sale": null,
     "image": "img/pants.jpg",
+    "images": [
+      "img/pants.jpg"
+    ],
     "shade": "#C8C8C8",
     "text": "Свободные брюки с лампасами. Мягкая посадка, городской крой.",
     "hit": false,
@@ -87,6 +99,9 @@
     "price": 213000,
     "sale": 159000,
     "image": "img/shorts.jpg",
+    "images": [
+      "img/shorts.jpg"
+    ],
     "shade": "#111111",
     "text": "Чёрные шорты на резинке. Спокойный крой, на лето и зал.",
     "hit": false,
@@ -103,6 +118,9 @@
     "price": 474000,
     "sale": 389000,
     "image": "img/sneakers-mesh.jpg",
+    "images": [
+      "img/sneakers-mesh.jpg"
+    ],
     "shade": "#E8E8E8",
     "text": "Белые кроссовки с сеткой и воздушной подошвой. На каждый день.",
     "hit": false,
@@ -119,6 +137,9 @@
     "price": 426000,
     "sale": null,
     "image": "img/sneakers-star.jpg",
+    "images": [
+      "img/sneakers-star.jpg"
+    ],
     "shade": "#F2F2F2",
     "text": "Кожаные кеды со звездой. Лёгкий винтажный вид, низкий ход.",
     "hit": false,
@@ -134,7 +155,8 @@
     "section": "hats",
     "price": 166000,
     "sale": 129000,
-    "image": null,
+    "image": "",
+    "images": [],
     "shade": "#6E6E6E",
     "text": "Мягкий берет, держит объём. Закрывает голову без давления.",
     "hit": false,
@@ -150,7 +172,8 @@
     "section": "hats",
     "price": 142000,
     "sale": 99000,
-    "image": null,
+    "image": "",
+    "images": [],
     "shade": "#D8D8D8",
     "text": "Лёгкая панама на сезон. Защищает от солнца и не мнётся в сумке.",
     "hit": false,
@@ -167,6 +190,9 @@
     "price": 284000,
     "sale": null,
     "image": "img/sweater.jpg",
+    "images": [
+      "img/sweater.jpg"
+    ],
     "shade": "#111111",
     "text": "Чёрный ребристый свитер. Плотная вязка, прямой силуэт, без лишнего декора.",
     "hit": true,
@@ -183,6 +209,9 @@
     "price": 379000,
     "sale": null,
     "image": "img/hoodie.jpg",
+    "images": [
+      "img/hoodie.jpg"
+    ],
     "shade": "#2A2A3A",
     "text": "Вареный зип-худи с капюшоном и принтом. Короткий крой, удобный на каждый день.",
     "hit": false,
@@ -199,6 +228,9 @@
     "price": 320000,
     "sale": 249000,
     "image": "img/pants.jpg",
+    "images": [
+      "img/pants.jpg"
+    ],
     "shade": "#C8C8C8",
     "text": "Свободные брюки с лампасами. Мягкая посадка, городской крой.",
     "hit": false,
@@ -215,6 +247,9 @@
     "price": 213000,
     "sale": null,
     "image": "img/shorts.jpg",
+    "images": [
+      "img/shorts.jpg"
+    ],
     "shade": "#111111",
     "text": "Чёрные шорты на резинке. Спокойный крой, на лето и зал.",
     "hit": false,
@@ -231,6 +266,9 @@
     "price": 474000,
     "sale": null,
     "image": "img/sneakers-mesh.jpg",
+    "images": [
+      "img/sneakers-mesh.jpg"
+    ],
     "shade": "#E8E8E8",
     "text": "Белые кроссовки с сеткой и воздушной подошвой. На каждый день.",
     "hit": false,
@@ -247,6 +285,9 @@
     "price": 426000,
     "sale": 339000,
     "image": "img/sneakers-star.jpg",
+    "images": [
+      "img/sneakers-star.jpg"
+    ],
     "shade": "#F2F2F2",
     "text": "Кожаные кеды со звездой. Лёгкий винтажный вид, низкий ход.",
     "hit": false,

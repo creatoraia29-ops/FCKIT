@@ -252,9 +252,47 @@ function visualStyle(item) {
   return `background: linear-gradient(160deg, ${item.shade}, #111111 85%)`;
 }
 
+function getProductImages(item) {
+  if (!item) return [];
+  if (Array.isArray(item.images) && item.images.length) {
+    return item.images.filter((img) => img && typeof img === "string");
+  }
+  if (item.image) return [item.image];
+  return [];
+}
+
 function mediaMarkup(item, className) {
-  if (item.image) {
-    return `<div class="${className} has-photo"><img src="${item.image}" alt="${item.title}" loading="lazy" decoding="async"></div>`;
+  const images = getProductImages(item);
+  const title = typeof escapeHtml === "function" ? escapeHtml(item.title || "Товар FCKIT") : (item.title || "Товар FCKIT");
+
+  if (images.length > 1) {
+    return `
+      <div class="${className} has-photo product-slider" data-slider-id="${item.id}">
+        <div class="product-slider__track">
+          ${images
+            .map(
+              (src, i) =>
+                `<img src="${src}" alt="${title} (${i + 1}/${images.length})" class="product-slider__img${
+                  i === 0 ? " is-active" : ""
+                }" data-idx="${i}" loading="lazy" decoding="async">`
+            )
+            .join("")}
+        </div>
+        <button type="button" class="product-slider__btn product-slider__prev" aria-label="Предыдущее фото" data-slide-dir="-1" title="Предыдущее фото">‹</button>
+        <button type="button" class="product-slider__btn product-slider__next" aria-label="Следующее фото" data-slide-dir="1" title="Следующее фото">›</button>
+        <div class="product-slider__dots">
+          ${images
+            .map(
+              (_, i) =>
+                `<span class="product-slider__dot${i === 0 ? " is-active" : ""}" data-slide-to="${i}"></span>`
+            )
+            .join("")}
+        </div>
+      </div>`;
+  }
+  if (images.length === 1 || item.image) {
+    const src = images[0] || item.image;
+    return `<div class="${className} has-photo"><img src="${src}" alt="${title}" loading="lazy" decoding="async"></div>`;
   }
   return `<div class="${className}" style="${visualStyle(item)}">FCKIT</div>`;
 }
@@ -642,3 +680,74 @@ bindMenu();
 bindCartFab();
 bindPageBack();
 updateCartBadge();
+
+// -----------------------------------------------------------------------------
+// ПЕРЕКЛЮЧЕНИЕ ФОТОГРАФИЙ В СЛАЙДЕРАХ ТОВАРОВ (КЛИКИ И СВАЙПЫ)
+// -----------------------------------------------------------------------------
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".product-slider__btn");
+  if (btn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const slider = btn.closest(".product-slider");
+    if (!slider) return;
+    const dir = Number(btn.dataset.slideDir || 1);
+    const imgs = slider.querySelectorAll(".product-slider__img");
+    const dots = slider.querySelectorAll(".product-slider__dot");
+    if (!imgs.length) return;
+    let curIdx = Array.from(imgs).findIndex((img) => img.classList.contains("is-active"));
+    if (curIdx < 0) curIdx = 0;
+    const nextIdx = (curIdx + dir + imgs.length) % imgs.length;
+    imgs.forEach((img, i) => img.classList.toggle("is-active", i === nextIdx));
+    dots.forEach((dot, i) => dot.classList.toggle("is-active", i === nextIdx));
+    return;
+  }
+
+  const dot = e.target.closest(".product-slider__dot");
+  if (dot) {
+    e.preventDefault();
+    e.stopPropagation();
+    const slider = dot.closest(".product-slider");
+    if (!slider) return;
+    const targetIdx = Number(dot.dataset.slideTo || 0);
+    const imgs = slider.querySelectorAll(".product-slider__img");
+    const dots = slider.querySelectorAll(".product-slider__dot");
+    imgs.forEach((img, i) => img.classList.toggle("is-active", i === targetIdx));
+    dots.forEach((d, i) => d.classList.toggle("is-active", i === targetIdx));
+    return;
+  }
+});
+
+let touchSliderStartX = 0;
+let touchSliderStartY = 0;
+let activeTouchSlider = null;
+
+document.addEventListener("touchstart", (e) => {
+  const slider = e.target.closest(".product-slider");
+  if (!slider) return;
+  const touch = e.touches[0];
+  touchSliderStartX = touch.clientX;
+  touchSliderStartY = touch.clientY;
+  activeTouchSlider = slider;
+}, { passive: true });
+
+document.addEventListener("touchend", (e) => {
+  if (!activeTouchSlider) return;
+  const touch = e.changedTouches[0];
+  const deltaX = touch.clientX - touchSliderStartX;
+  const deltaY = touch.clientY - touchSliderStartY;
+  const slider = activeTouchSlider;
+  activeTouchSlider = null;
+
+  if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+    const dir = deltaX < 0 ? 1 : -1;
+    const imgs = slider.querySelectorAll(".product-slider__img");
+    const dots = slider.querySelectorAll(".product-slider__dot");
+    if (!imgs.length) return;
+    let curIdx = Array.from(imgs).findIndex((img) => img.classList.contains("is-active"));
+    if (curIdx < 0) curIdx = 0;
+    const nextIdx = (curIdx + dir + imgs.length) % imgs.length;
+    imgs.forEach((img, i) => img.classList.toggle("is-active", i === nextIdx));
+    dots.forEach((dot, i) => dot.classList.toggle("is-active", i === nextIdx));
+  }
+}, { passive: true });

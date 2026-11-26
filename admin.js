@@ -247,15 +247,92 @@ const editPrice = document.getElementById("editPrice");
 const editSale = document.getElementById("editSale");
 const editImage = document.getElementById("editImage");
 const editImageFile = document.getElementById("editImageFile");
+const editImageUrls = document.getElementById("editImageUrls");
 const adminPhotoPrompt = document.getElementById("adminPhotoPrompt");
-const adminPhotoPreviewBox = document.getElementById("adminPhotoPreviewBox");
-const adminPhotoPreviewImg = document.getElementById("adminPhotoPreviewImg");
-const adminPhotoPreviewName = document.getElementById("adminPhotoPreviewName");
-const btnRemoveAdminPhoto = document.getElementById("btnRemoveAdminPhoto");
+const adminPhotoList = document.getElementById("adminPhotoList");
 const editShade = document.getElementById("editShade");
 const editText = document.getElementById("editText");
 const editHit = document.getElementById("editHit");
 const btnModalCancel = document.getElementById("btnModalCancel");
+
+let currentProductImages = [];
+
+function renderAdminPhotoList() {
+  if (!adminPhotoList) return;
+  if (!currentProductImages.length) {
+    adminPhotoList.innerHTML = "";
+    if (adminPhotoPrompt) adminPhotoPrompt.style.display = "flex";
+    if (editImage) editImage.value = "";
+    return;
+  }
+  if (adminPhotoPrompt) adminPhotoPrompt.style.display = "none";
+  if (editImage) editImage.value = currentProductImages[0] || "";
+
+  adminPhotoList.innerHTML = currentProductImages
+    .map(
+      (src, idx) => `
+    <div style="position: relative; width: 72px; height: 72px; border-radius: 6px; overflow: hidden; border: 2px solid ${
+      idx === 0 ? "var(--pink, #ff2d55)" : "var(--line)"
+    }; background: #222;" title="${idx === 0 ? "Главное фото" : "Дополнительное фото #" + (idx + 1)}">
+      <img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" alt="Фото ${idx + 1}" />
+      ${
+        idx === 0
+          ? `<span style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(255,45,85,0.9); color: #fff; font-size: 9px; text-align: center; font-weight: 700; padding: 1px 0;">ГЛАВНОЕ</span>`
+          : ""
+      }
+      <div style="position: absolute; top: 2px; right: 2px; display: flex; gap: 2px;">
+        ${
+          idx > 0
+            ? `<button type="button" data-make-primary="${idx}" title="Сделать главным" style="width: 18px; height: 18px; border-radius: 50%; background: rgba(0,0,0,0.7); color: #fff; border: none; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">★</button>`
+            : ""
+        }
+        <button type="button" data-remove-photo="${idx}" title="Удалить фото" style="width: 18px; height: 18px; border-radius: 50%; background: rgba(220,53,69,0.85); color: #fff; border: none; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">✕</button>
+      </div>
+    </div>`
+    )
+    .join("");
+}
+
+adminPhotoList?.addEventListener("click", (e) => {
+  const makePrimaryBtn = e.target.closest("[data-make-primary]");
+  if (makePrimaryBtn) {
+    const idx = Number(makePrimaryBtn.dataset.makePrimary);
+    if (idx > 0 && idx < currentProductImages.length) {
+      const [item] = currentProductImages.splice(idx, 1);
+      currentProductImages.unshift(item);
+      renderAdminPhotoList();
+    }
+    return;
+  }
+  const removeBtn = e.target.closest("[data-remove-photo]");
+  if (removeBtn) {
+    const idx = Number(removeBtn.dataset.removePhoto);
+    if (idx >= 0 && idx < currentProductImages.length) {
+      currentProductImages.splice(idx, 1);
+      renderAdminPhotoList();
+    }
+    return;
+  }
+});
+
+editImageUrls?.addEventListener("input", () => {
+  const text = editImageUrls.value.trim();
+  if (!text) return;
+  const urls = text
+    .split(/[\n,]+/)
+    .map((u) => u.trim())
+    .filter(Boolean);
+  let changed = false;
+  urls.forEach((url) => {
+    if (!currentProductImages.includes(url)) {
+      currentProductImages.push(url);
+      changed = true;
+    }
+  });
+  if (changed) {
+    renderAdminPhotoList();
+  }
+});
 
 function compressProductImage(file) {
   return new Promise((resolve, reject) => {
@@ -290,45 +367,19 @@ function compressProductImage(file) {
   });
 }
 
-function updateAdminPhotoPreview(src, name = "Фото товара") {
-  if (src) {
-    if (adminPhotoPrompt) adminPhotoPrompt.style.display = "none";
-    if (adminPhotoPreviewBox) adminPhotoPreviewBox.style.display = "flex";
-    if (adminPhotoPreviewImg) adminPhotoPreviewImg.src = src;
-    if (adminPhotoPreviewName) adminPhotoPreviewName.textContent = name;
-  } else {
-    if (adminPhotoPrompt) adminPhotoPrompt.style.display = "flex";
-    if (adminPhotoPreviewBox) adminPhotoPreviewBox.style.display = "none";
-    if (adminPhotoPreviewImg) adminPhotoPreviewImg.src = "";
-    if (editImage) editImage.value = "";
-    if (editImageFile) editImageFile.value = "";
-  }
-}
-
 editImageFile?.addEventListener("change", async () => {
-  const file = editImageFile.files?.[0];
-  if (!file) return;
-  try {
-    const compressed = await compressProductImage(file);
-    editImage.value = compressed;
-    updateAdminPhotoPreview(compressed, file.name);
-  } catch (err) {
-    alert("Не удалось загрузить фото: " + err.message);
+  const files = Array.from(editImageFile.files || []);
+  if (!files.length) return;
+  for (const file of files) {
+    try {
+      const compressed = await compressProductImage(file);
+      currentProductImages.push(compressed);
+    } catch (err) {
+      console.warn("Не удалось обработать фото:", err.message);
+    }
   }
-});
-
-btnRemoveAdminPhoto?.addEventListener("click", (e) => {
-  e.stopPropagation();
-  updateAdminPhotoPreview("");
-});
-
-editImage?.addEventListener("input", () => {
-  const val = editImage.value.trim();
-  if (val) {
-    updateAdminPhotoPreview(val, "Указанная ссылка");
-  } else {
-    updateAdminPhotoPreview("");
-  }
+  editImageFile.value = "";
+  renderAdminPhotoList();
 });
 
 function renderProductsTab() {
@@ -366,8 +417,14 @@ function renderProductsTab() {
   }
 
   productsTableBody.innerHTML = filteredList.map((item) => {
-    const thumbHtml = item.image
-      ? `<img src="${item.image}" alt="" class="admin-table-thumb" />`
+    const imgList = (Array.isArray(item.images) && item.images.length)
+      ? item.images
+      : (item.image ? [item.image] : []);
+    const thumbHtml = imgList[0]
+      ? `<div style="position:relative; display:inline-block; vertical-align:middle;">
+           <img src="${imgList[0]}" alt="" class="admin-table-thumb" />
+           ${imgList.length > 1 ? `<span style="position:absolute; bottom:2px; right:2px; background:rgba(0,0,0,0.85); color:#fff; font-size:10px; padding:1px 4px; border-radius:3px; font-weight:600;">📷 ${imgList.length}</span>` : ""}
+         </div>`
       : `<div class="admin-table-thumb-empty" style="background:${item.shade || "#222"}">FCKIT</div>`;
 
     const hitBadge = item.hit ? `<span class="badge-tag is-hit">HIT</span>` : `<span class="hero-copy">—</span>`;
@@ -449,7 +506,9 @@ btnNewProduct.addEventListener("click", () => {
   editShade.value = "#1A1A1A";
   editText.value = "";
   editHit.checked = false;
-  updateAdminPhotoPreview("");
+  currentProductImages = [];
+  if (editImageUrls) editImageUrls.value = "";
+  renderAdminPhotoList();
   productModal.showModal();
 });
 
@@ -466,6 +525,22 @@ productEditForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  // Если в поле ссылок остались не добавленные ссылки
+  if (editImageUrls && editImageUrls.value.trim()) {
+    const urls = editImageUrls.value
+      .trim()
+      .split(/[\n,]+/)
+      .map((u) => u.trim())
+      .filter(Boolean);
+    urls.forEach((url) => {
+      if (!currentProductImages.includes(url)) currentProductImages.push(url);
+    });
+    editImageUrls.value = "";
+  }
+
+  const primaryImage = currentProductImages[0] || editImage.value.trim() || "";
+  const imagesArray = currentProductImages.length ? [...currentProductImages] : (primaryImage ? [primaryImage] : []);
+
   const existingIndex = PRODUCTS.findIndex((p) => p.id === idVal);
   const updatedItem = {
     id: idVal,
@@ -474,7 +549,8 @@ productEditForm.addEventListener("submit", async (e) => {
     section: editSection.value,
     price: priceVal,
     sale: saleVal,
-    image: editImage.value.trim(),
+    image: primaryImage,
+    images: imagesArray,
     shade: editShade.value.trim() || "#1A1A1A",
     text: editText.value.trim(),
     hit: editHit.checked,
@@ -486,7 +562,8 @@ productEditForm.addEventListener("submit", async (e) => {
   updatedItem.section = editSection.value;
   updatedItem.price = priceVal;
   updatedItem.sale = saleVal;
-  updatedItem.image = editImage.value.trim();
+  updatedItem.image = primaryImage;
+  updatedItem.images = imagesArray;
   updatedItem.shade = editShade.value.trim() || "#1A1A1A";
   updatedItem.text = editText.value.trim();
   updatedItem.hit = editHit.checked;
@@ -529,7 +606,13 @@ productsTableBody.addEventListener("click", async (e) => {
     editShade.value = item.shade || "#1A1A1A";
     editText.value = item.text || "";
     editHit.checked = !!item.hit;
-    updateAdminPhotoPreview(item.image || "", item.title);
+
+    currentProductImages = (Array.isArray(item.images) && item.images.length)
+      ? [...item.images]
+      : (item.image ? [item.image] : []);
+    if (editImageUrls) editImageUrls.value = "";
+    renderAdminPhotoList();
+
     productModal.showModal();
     return;
   }

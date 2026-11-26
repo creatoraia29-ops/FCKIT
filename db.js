@@ -118,9 +118,11 @@ async function initDatabase() {
             installmentMonths INTEGER DEFAULT 4,
             weightGram INTEGER,
             tiers TEXT,
-            tagStyle TEXT
+            tagStyle TEXT,
+            images TEXT
           );
         `);
+        await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS images TEXT;`);
 
         // 2. Таблица заказов
         await client.query(`
@@ -373,6 +375,18 @@ let cachedPromotionsExpiresAt = 0;
 const PROMOTIONS_CACHE_TTL_MS = 60 * 1000;
 
 function mapProductRow(row) {
+  let images = [];
+  if (row.images) {
+    try {
+      images = typeof row.images === "string" ? JSON.parse(row.images) : row.images;
+    } catch {}
+  }
+  if (!Array.isArray(images) || !images.length) {
+    if (row.image) images = [row.image];
+    else images = [];
+  }
+  const primaryImage = images[0] || row.image || "";
+
   return {
     id: Number(row.id),
     title: row.title,
@@ -380,7 +394,8 @@ function mapProductRow(row) {
     section: row.section,
     price: Number(row.price),
     sale: row.sale ? Number(row.sale) : null,
-    image: row.image,
+    image: primaryImage,
+    images: images,
     shade: row.shade,
     text: row.text,
     hit: Boolean(row.hit),
@@ -450,9 +465,14 @@ async function dbSaveProducts(list) {
       await client.query("BEGIN");
       await client.query("DELETE FROM products");
       for (const item of list) {
+        const imagesList = Array.isArray(item.images) && item.images.length
+          ? item.images
+          : (item.image ? [item.image] : []);
+        const primaryImage = imagesList[0] || item.image || null;
+
         await client.query(
-          `INSERT INTO products (id, title, department, section, price, sale, image, shade, text, hit, installmentMonths, weightGram, tiers, tagStyle)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          `INSERT INTO products (id, title, department, section, price, sale, image, shade, text, hit, installmentMonths, weightGram, tiers, tagStyle, images)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             item.id,
             item.title,
@@ -460,7 +480,7 @@ async function dbSaveProducts(list) {
             item.section,
             item.price,
             item.sale || null,
-            item.image || null,
+            primaryImage,
             item.shade || null,
             item.text || null,
             item.hit ? 1 : 0,
@@ -468,6 +488,7 @@ async function dbSaveProducts(list) {
             item.weightGram || null,
             item.tiers ? JSON.stringify(item.tiers) : null,
             item.tagStyle ? JSON.stringify(item.tagStyle) : null,
+            imagesList.length ? JSON.stringify(imagesList) : null,
           ]
         );
       }
